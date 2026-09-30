@@ -1,82 +1,96 @@
-# Codex Quota Rings · 额度双环
+# Codex Quota Rings
 
-一个轻量的 macOS 原生额度组件：随时查看 Codex 的 **5 小时**与**一周**剩余额度。
+**English** · [简体中文](README.zh-CN.md)
 
-![大卡片、展开详情和两种小组件布局，均为示例数据](assets/layouts.png)
+A small, native macOS widget that turns your remaining Codex quota into two easy-to-read rings—one for the **5-hour window**, one for the **weekly window**.
 
-## 功能
+Keep a compact pair of rings beside your work, or use an expandable desktop-style card to see reset countdowns and update times. Built with Swift and AppKit, with no web runtime or third-party app dependencies.
 
-- **大组件**：横向双环卡片，点击原位展开重置倒计时、重置日期和最近更新时间。
-- **小组件**：横向或竖向双环，点击弹出详情；再次点击或点击外部关闭。
-- **显示范围**：默认聚焦 Codex 时显示；也可选择一直显示、聚焦桌面时显示。
-- **自动更新**：每 30 秒读取，并接收本地 app-server 的额度更新通知。
-- **剩余额度颜色**：大于 50% 鼠尾草绿（`#8FA990`），20–50% 金棕色（`#B48A4A`），低于 20% 陶土红（`#BD7A70`）。过期或断连显示灰色并标注状态。
-- 右键组件或点击菜单栏圆环图标更改设置；拖动组件改变位置。尺寸、方向、显示范围和各布局位置分别保存。
+![Large card, expanded details, and compact vertical and horizontal layouts using sample data](assets/layouts.png)
 
-## 环境要求
+## Features
 
-- macOS 12 或更新版本，Apple Silicon 或 Intel Mac。
-- Xcode Command Line Tools：运行 `xcode-select --install` 安装。
-- 已安装并登录的 Codex CLI，支持 `codex app-server --listen stdio://` 及额度读取接口。
-- 运行测试需要 Python 3。测试使用本地协议模拟器，不需要账户或网络。
+- **Three layouts:** a large horizontal card, compact vertical rings, or compact horizontal rings.
+- **Click for details:** expand the large card in place, or open a detail panel from a compact widget. No manual refresh button.
+- **Three visibility modes:** follow Codex focus (default), always show, or show on a clear Finder desktop.
+- **Automatic updates:** read limits every 30 seconds and receive available app-server quota notifications.
+- **A soft palette:** sage green above 50%, warm gold at 20–50%, and terracotta below 20%. Disconnected or stale data turns gray.
+- **Persistent settings:** size, orientation, visibility, and each layout’s position are saved independently.
+- **Native interaction:** drag to move; right-click the widget or use the menu bar ring to change settings. The widget does not take focus from your current app.
 
-## 构建与运行
+## Requirements
 
-克隆仓库并进入目录后：
+- macOS 12 or later on Apple Silicon or Intel.
+- Xcode Command Line Tools (`xcode-select --install`).
+- A locally installed and authenticated Codex CLI supporting `codex app-server --listen stdio://` and account rate-limit queries.
+- Python 3 for the local protocol test fixture. Automated tests do not require an account or network access.
+
+## Build and run
 
 ```sh
+git clone https://github.com/innoerL/codex_quota_rings.git
+cd codex_quota_rings
 make build
 open 'build/Quota Rings.app'
 ```
 
-`make build` 先执行测试，再为当前机器架构构建并本地签名。也可以使用 `make run`。
+`make build` runs the test suite, builds for your current architecture, and applies an ad-hoc local signature. `make run` also opens the resulting app. Native window tests require a logged-in macOS graphical session.
 
-默认查找 `/usr/local/bin/codex`、`/opt/homebrew/bin/codex` 和 `/Applications/Codex.app/Contents/Resources/codex`。如果 CLI 位于其他位置，直接启动应用可传入路径：
+The app has a menu bar icon and no Dock icon. Quit from the menu bar ring or the widget’s context menu. This source release does not include a notarized installer or automatic updates.
+
+### Choosing a Codex executable
+
+The app searches `/usr/local/bin/codex`, `/opt/homebrew/bin/codex`, then `/Applications/Codex.app/Contents/Resources/codex`. To use another location, launch the executable directly:
 
 ```sh
 QUOTA_CODEX_PATH="$(command -v codex)" 'build/Quota Rings.app/Contents/MacOS/QuotaRings'
 ```
 
-组件是辅助应用，不显示 Dock 图标。通过菜单栏圆环菜单退出。源码构建使用本地临时签名，尚未提供公证安装包或自动更新。
+Quota belongs to the account used by that CLI. If the desktop app and CLI use different accounts or configuration homes, their displayed limits may differ.
 
-## 显示范围
+## Visibility and controls
 
-| 选项 | 行为 |
+The current interface is in Simplified Chinese:
+
+| Menu choice | Behavior |
 | --- | --- |
-| 聚焦 Codex 时显示（默认） | Codex 应用在前台且存在可见窗口时显示 |
-| 一直显示 | 浮在其他应用上方，点击组件不会激活它 |
-| 聚焦桌面时显示 | Finder 在前台且屏幕上没有普通应用窗口时显示 |
+| 大 / 小 | Large / small size |
+| 小组件布局 → 竖向 / 横向 | Compact vertical / horizontal layout |
+| 聚焦 Codex 时显示 | Show while Codex is foreground with a visible window; default |
+| 一直显示 | Float above other applications |
+| 聚焦桌面时显示 | Show when Finder is foreground and no ordinary app windows remain visible |
 
-桌面模式使用 macOS 前台应用和窗口信息判断。Finder 文件夹窗口不等于桌面；多显示器上仍有应用窗口，或桌面状态无法确定时，会保守隐藏。它模拟桌面组件的使用方式，并非 WidgetKit 扩展，不支持系统“编辑小组件”面板。
+Finder folder windows do not count as the desktop. Desktop mode hides conservatively if other application windows remain visible, including on another display, or if desktop state is uncertain. It is a floating AppKit app inspired by desktop widgets, not a WidgetKit extension in the system widget gallery. Stage Manager and multi-display behavior need broader compatibility testing.
 
-## 开发与验证
+## Development
 
 ```sh
-make test        # 模型、协议、偏好、菜单、显隐、绘制、窗口交互、公开文件检查
-make live-check  # 可选：查询本机已登录账户，验证两次读取
-make clean       # 仅清理 build/ 下的生成文件
+make test        # Deterministic model, protocol, settings, menu, rendering and window checks
+make live-check  # Optional: two read-only queries against your authenticated local account
+make clean       # Remove generated build/ files only
 ```
 
-测试图片写入 `build/`，使用合成数据。`make live-check` 不在 CI 中执行，真实额度不进入公开截图。请参阅 [贡献指南](CONTRIBUTING.md)。
+Synthetic previews are written to `build/`. Live checks are excluded from CI, and live-account captures must never be committed. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
-## 隐私
+## Privacy
 
-组件通过本机 Codex CLI 的 stdio app-server 通道初始化连接、读取额度并接收相关通知。不启动模型任务，不修改账户或额度，不读取登录凭证文件，不保存额度历史，也不记录原始响应。显示偏好及窗口位置保存在 macOS UserDefaults 中。
+The widget communicates with the local Codex CLI over stdio to initialize an app-server session, read rate limits, and receive related notifications. It does not start model turns, modify account limits, inspect credential files, record raw responses, or retain usage history. Only display settings and positions are persisted in macOS UserDefaults.
 
-组件自身不连接远程服务器。Codex CLI 可能使用它既有的登录和网络连接获取额度；CLI 的行为由其安装版本和配置决定。
+The widget itself makes no remote network requests. The Codex CLI can use its existing authentication and network connection to retrieve limits; its behavior depends on your installed version and configuration.
 
-## 故障排查与限制
+## Troubleshooting
 
-- **看不到组件**：默认仅在 Codex 前台显示；从菜单栏将显示范围改为“一直显示”检查。
-- **找不到 CLI**：确认 CLI 路径，并用上述 `QUOTA_CODEX_PATH` 启动命令指定。
-- **暂无数据、灰环或断连**：确认 Codex 已登录且账户提供这两个额度窗口；组件会自动重试。超过 90 秒未更新会标记过期。
-- app-server 接口和 Codex 应用标识可能随版本变化。此项目依赖本机提供的兼容接口，不保证所有 Codex 版本或账户类型都支持。
-- 原生界面目前为简体中文；欢迎贡献其他语言。
+- **Widget is hidden:** the default mode follows Codex focus. Select “一直显示” from the menu bar ring to show it everywhere.
+- **CLI not found:** supply `QUOTA_CODEX_PATH` using the direct launch command above.
+- **Gray rings or no data:** check that the CLI is signed in and your account exposes both quota windows. The widget retries automatically; data older than 90 seconds is marked stale.
+- **Version compatibility:** app-server interfaces and desktop app identifiers may change. Not every Codex version or account type is guaranteed to expose compatible limits.
+
+## Help make it better
+
+[Open an issue](https://github.com/innoerL/codex_quota_rings/issues) with a reproducible bug or an idea, or submit a pull request. UI polish, desktop compatibility, accessibility, and translations are welcome. Please use synthetic values in shared screenshots.
 
 ## License
 
-[MIT](LICENSE)。这是独立的社区项目，与 OpenAI 无隶属关系，也未获 OpenAI 背书。
+[MIT](LICENSE) © 2026 Codex Quota Rings contributors.
 
----
-
-**English:** A native macOS floating widget showing remaining Codex usage in the 5-hour and weekly windows. Choose a large expandable card or compact horizontal/vertical rings. Visibility can follow Codex focus (default), stay always on, or follow a clear Finder desktop. Build with `make build`; run deterministic checks with `make test`. Requires macOS 12+, Command Line Tools, Python 3 for tests, and a locally authenticated compatible Codex CLI. MIT licensed, no telemetry, no stored usage history, not affiliated with OpenAI.
+This is an independent community project, not affiliated with or endorsed by OpenAI.
