@@ -3,9 +3,9 @@ import AppKit
 extension QuotaLevel {
     var color: NSColor {
         switch self {
-        case .ample: return .systemGreen
-        case .caution: return .systemYellow
-        case .low: return .systemRed
+        case .ample: return NSColor(srgbRed: 143/255, green: 169/255, blue: 144/255, alpha: 1)
+        case .caution: return NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1)
+        case .low: return NSColor(srgbRed: 189/255, green: 122/255, blue: 112/255, alpha: 1)
         case .unknown: return NSColor(white: 0.42, alpha: 1)
         }
     }
@@ -109,7 +109,7 @@ class QuotaView: NSView {
         ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26, y: 30), title: "5 小时")
         ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78, y: smallLayout == .vertical ? 86 : 30), title: "一周")
         if connectionError != nil || snapshot?.isStale() == true {
-            NSColor.systemOrange.setFill()
+            QuotaLevel.caution.color.setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()
         }
     }

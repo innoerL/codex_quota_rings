@@ -15,7 +15,7 @@ final class LargeQuotaView: QuotaView {
         ring(snapshot?.week, at: CGPoint(x: 200, y: 77), title: "一周", radius: 28)
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {
-            NSColor.systemOrange.withAlphaComponent(0.7).setFill()
+            QuotaLevel.caution.color.withAlphaComponent(0.7).setFill()
             NSBezierPath(ovalIn: NSRect(x: 258, y: 21, width: 5, height: 5)).fill()
         }
         let status = connectionError != nil ? "连接中断 · 自动重试" : snapshot == nil ? "正在读取额度…" : stale ? "数据可能已过期" : "每 30 秒自动更新"
