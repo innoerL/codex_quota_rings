@@ -9,6 +9,8 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var preferences: WidgetPreferences
     private lazy var widgetMenu = WidgetMenu(preferences: preferences)
     private var changingFrame = false
+    // Logical placement survives temporary screen-edge clamping while details are open.
+    private var placementAnchor: NSPoint?
     private(set) var panel: NSPanel!
     private var statusItem: NSStatusItem!
     private let details = QuotaDetailsView(frame: NSRect(origin: .zero, size: QuotaDetailsView.preferredSize))
@@ -91,10 +93,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func windowDidMove(_ notification: Notification) {
         guard !changingFrame, let panel else { return }
-        // Save the top-left anchor; expansion changes height, not the user's placement.
+        placementAnchor = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        savePosition()
+    }
+    private func savePosition() {
+        guard let panel else { return }
+        let anchor = placementAnchor ?? NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
         let key = "widget.position.\(preferences.positionKey)"
-        defaults.set(panel.frame.minX, forKey: key + ".x")
-        defaults.set(panel.frame.maxY, forKey: key + ".top")
+        defaults.set(anchor.x, forKey: key + ".x")
+        defaults.set(anchor.y, forKey: key + ".top")
     }
     func applicationWillTerminate(_ notification: Notification) {
         hideDetails()
@@ -156,7 +163,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         defaults.set(view.showUsed, forKey: "showUsed")
     }
     func applyPreferences(_ selection: WidgetPreferences) {
-        windowDidMove(Notification(name: NSWindow.didMoveNotification))
+        savePosition()
         let layoutChanged = preferences.positionKey != selection.positionKey
         hideDetails(); largeView.isExpanded = false
         preferences = selection; preferences.save(to: defaults)
@@ -171,7 +178,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.smallLayout = preferences.smallLayout
         let content: QuotaView = preferences.size == .large ? largeView : view
         let size = content.preferredContentSize
-        var anchor = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        var anchor = placementAnchor ?? NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
         let key = "widget.position.\(preferences.positionKey)"
         if restorePosition, let x = defaults.object(forKey: key + ".x") as? Double,
            let top = defaults.object(forKey: key + ".top") as? Double {
@@ -181,6 +188,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             ?? panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? panel.frame
         let x = max(screen.minX, min(anchor.x, screen.maxX - size.width))
         let y = max(screen.minY, min(anchor.y - size.height, screen.maxY - size.height))
+        placementAnchor = largeView.isExpanded ? anchor : NSPoint(x: x, y: y + size.height)
         panel.contentView = content
         panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
         content.frame = NSRect(origin: .zero, size: size)

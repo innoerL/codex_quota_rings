@@ -21,6 +21,16 @@ import AppKit
         precondition(app.panel.frame.height > collapsedHeight && !app.detailsPanel.isVisible)
         app.toggleDetails()
         precondition(app.panel.frame.height == collapsedHeight)
+        // Expansion may need to clamp the taller card upward, but that is not a drag.
+        let screen = app.panel.screen!.visibleFrame
+        app.panel.setFrameOrigin(NSPoint(x: screen.minX + 30, y: screen.minY + 5))
+        let bottomOrigin = app.panel.frame.origin
+        app.toggleDetails(); app.toggleDetails()
+        precondition(app.panel.frame.origin == bottomOrigin, "expanding near bottom must preserve placement")
+        app.toggleDetails()
+        p.size = .small; app.applyPreferences(p)
+        p.size = .large; app.applyPreferences(p)
+        precondition(app.panel.frame.origin == bottomOrigin, "temporary expansion clamp must not overwrite saved position")
         p.size = .small; app.applyPreferences(p)
         precondition(app.panel.frame.size == compactSize && app.panel.frame.origin == compactOrigin)
         app.toggleDetails(); precondition(app.detailsPanel.isVisible)
