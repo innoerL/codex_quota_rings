@@ -6,7 +6,7 @@ Publish Codex Quota Rings as a small, welcoming MIT-licensed macOS project. It g
 
 ## What exists today
 
-The prototype is a native Swift/AppKit application. It starts a read-only local `codex app-server` session, requests the current usage limits, and renders compact 5-hour and weekly rings. It runs only while the ChatGPT/Codex desktop app is foreground, uses system colors for quota state, and provides a passive detail card.
+The prototype is a native Swift/AppKit application. It starts a read-only local `codex app-server` session, requests the current usage limits, and renders compact 5-hour and weekly rings. It uses system colors for quota state and provides a passive detail card.
 
 ## Project boundary
 
@@ -36,9 +36,20 @@ The top-level build entry point builds the app into a temporary directory, runs 
 
 - Display the remaining percentage for the 5-hour and weekly Codex windows. Values above 50% are green, 20–50% are yellow, and values below 20% are red.
 - Poll every 30 seconds and consume usage-limit update notifications when available.
-- Show the compact rings only when the desktop Codex application (`com.openai.codex`) is foreground and has a visible app window. Hide the compact and detail surfaces elsewhere.
-- Expand on click to show the reset countdown, reset timestamp, and last-update timestamp. The detail card has no manual refresh button.
+- Persist a user-selected display scope. The default is **Focus Codex**, which shows the widget only while the desktop Codex application (`com.openai.codex`) is foreground and has a visible app window. **Always show** keeps it visible above other applications. **Focus desktop** follows the macOS desktop-widget convention: show it only after the desktop is revealed, then hide it when an ordinary application becomes foreground.
+- Persist a user-selected size and layout. **Large** is a horizontal two-ring card. **Small vertical** stacks the two compact rings. **Small horizontal** places the compact rings side by side. Large has no separate orientation option.
+- The large card begins collapsed with its title, the two rings, a data-status label, and an expand indicator. Clicking it expands the lower half of that same card to show the reset countdown, reset timestamp, and last-update timestamp. It has no manual refresh button or detached detail window.
+- Small layouts open a compact native detail surface on click. It contains the same read-only timing details and no manual refresh button.
+- Make the active size, small-layout orientation, display scope, and card expansion state clear in the controls. Save size, orientation, display scope, and position separately so changing one never overwrites the others.
 - Treat absent, invalid, stale, or disconnected data as unknown; never present it as available quota.
+
+## Interaction and visual design
+
+The controls follow macOS visual conventions: system semantic colors, rounded type for compact percentage values, translucent material for expanded information, and a quiet hover response. The large card uses a 16-point rounded rectangle, a restrained separator, and a chevron that changes direction with expanded state. Both ring tracks remain neutral; only the filled arc uses the quota color. A small status dot appears only for stale or disconnected data.
+
+The contextual menu includes a size submenu, a small-layout submenu enabled only for small size, and a display-scope submenu. Their selected choices use the standard checkmark state. The display-scope submenu contains exactly `Focus Codex`, `Always show`, and `Focus desktop` in that order.
+
+Focus desktop must use the macOS workspace/frontmost-application signal and visible-window state; it must not capture keystrokes, simulate desktop clicks, hide other applications, alter the Dock, or use Accessibility permissions. If the desktop state cannot be resolved, the widget hides rather than appearing in the wrong context.
 
 ## Privacy and safety contract
 
@@ -53,6 +64,7 @@ MIT permits commercial and derivative use while requiring preservation of the co
 ## First release acceptance criteria
 
 - A clean macOS checkout can build the app and run all non-live tests with the documented command.
+- Deterministic tests cover every size/layout combination, each display scope, compact-card detail opening, large-card in-place expansion and collapse, menu checkmark persistence, stale/unknown coloring, and independent preference updates.
 - `git status --ignored` shows no local app bundle, preview, `.DS_Store`, compiled executable, cache, or test output tracked.
 - README covers requirements, running, building, automatic visibility behavior, color semantics, privacy, limitations, and contribution entry points.
 - Legal and community files are present and internally consistent with MIT licensing.
