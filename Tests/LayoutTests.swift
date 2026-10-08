@@ -40,7 +40,8 @@ import AppKit
         precondition(clicks == 2 && large.preferredContentSize.height > LargeQuotaView.collapsedSize.height
                      && large.preferredContentSize.height < expandedWithoutTasks,
                      "collapsed large card must retain task rows while remaining shorter than details")
-        precondition(large.subviews.isEmpty, "large details must be drawn in the same card")
+        precondition(large.subviews.compactMap { $0 as? TaskRowView }.count == tasks.count,
+                     "large details must use reusable task rows")
         large.isExpanded = true
         large.connectionState = .codexNotInstalled
         precondition(large.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["安装 Codex"])
@@ -78,6 +79,8 @@ import AppKit
         detail.connectionState = .ready
         precondition(detail.subviews.compactMap { $0 as? NSButton }.isEmpty)
         detail.taskStatuses = tasks
+        precondition(detail.subviews.compactMap { $0 as? TaskRowView }.count == tasks.count,
+                     "compact details must use reusable task rows")
         precondition(detail.preferredContentSize.height > detailWithoutTasks,
                      "compact detail card must grow for background task rows")
         let bitmap = root.bitmapImageRepForCachingDisplay(in: root.bounds)!

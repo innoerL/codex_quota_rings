@@ -5,6 +5,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let client: QuotaClient
     private let defaults: UserDefaults
     private let historyStore: QuotaHistoryStore
+    private let navigator: CodexNavigating
     private var forecastEngine = QuotaForecastEngine()
     private var receivedTaskStatuses: [WidgetTaskStatus] = []
     private var connectionState: QuotaConnectionState = .locating
@@ -24,7 +25,8 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var freshnessTimer: Timer?
     private var visibilityTimer: Timer?
 
-    init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
+    init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(),
+         historyFileURL: URL? = nil, navigator: CodexNavigating? = nil) {
         self.defaults = defaults; self.client = client
         let loaded = WidgetPreferences.load(from: defaults)
         self.preferences = loaded
@@ -33,6 +35,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .appendingPathComponent("quota-history.json")
         self.historyStore = QuotaHistoryStore(retention: loaded.historyRetention,
                                               fileURL: historyFileURL ?? defaultHistoryURL)
+        self.navigator = navigator ?? CodexNavigator(codexApplicationURL: { [weak client] in client?.codexApplicationURL })
         super.init()
     }
 
@@ -75,6 +78,8 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         largeView.onOpenCodex = { [weak self] in self?.openCodex() }
         details.onInstallCodex = { [weak self] in self?.installCodex() }
         details.onOpenCodex = { [weak self] in self?.openCodex() }
+        largeView.onTaskClick = { [weak self] id in self?.openTask(id) }
+        details.onTaskClick = { [weak self] id in self?.openTask(id) }
         largeView.showUsed = view.showUsed
         widgetMenu.onChange = { [weak self] selection in self?.applyPreferences(selection) }
         configureLayout(restorePosition: true)
@@ -95,7 +100,10 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         publishHistory()
         applyConnectionState(.locating)
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            self?.view.needsDisplay = true; self?.largeView.needsDisplay = true; self?.details.updateLabels()
+            guard let self else { return }
+            self.view.needsDisplay = true; self.largeView.needsDisplay = true; self.details.updateLabels()
+            let now = Date()
+            self.largeView.refreshTaskDurations(at: now); self.details.refreshTaskDurations(at: now)
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         let notifications: [Notification.Name] = [NSWorkspace.didActivateApplicationNotification,
@@ -357,6 +365,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             configuration.activates = true
             NSWorkspace.shared.openApplication(at: url, configuration: configuration)
         }
+    }
+    private func openTask(_ id: String) {
+        _ = navigator.openTask(id: id)
     }
     @objc private func quit() { NSApp.terminate(nil) }
 }

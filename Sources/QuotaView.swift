@@ -28,7 +28,8 @@ class QuotaView: NSView {
     }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
     var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
-    var taskStatuses: [WidgetTaskStatus] = [] { didSet { needsDisplay = true; updateTooltip() } }
+    var taskStatuses: [WidgetTaskStatus] = [] { didSet { needsDisplay = true; updateTooltip(); taskStatusesDidChange() } }
+    func taskStatusesDidChange() {}
     var connectionError: String? { didSet { needsDisplay = true; updateTooltip() } }
     var connectionState: QuotaConnectionState = .locating { didSet { needsDisplay = true; updateTooltip(); connectionStateDidChange() } }
     func connectionStateDidChange() {}

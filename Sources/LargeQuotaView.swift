@@ -5,7 +5,7 @@ final class LargeQuotaView: QuotaView {
     static let collapsedSize = NSSize(width: 280, height: 174)
     private static let expandedBaseHeight: CGFloat = 456
     private var guidanceHeight: CGFloat { isExpanded && guidanceTitle != nil ? 38 : 0 }
-    private var taskSectionHeight: CGFloat { taskStatuses.isEmpty ? 0 : 10 + CGFloat(taskStatuses.count) * 24 }
+    private var taskSectionHeight: CGFloat { taskStatuses.isEmpty ? 0 : 8 + CGFloat(taskStatuses.count) * 30 }
     override var preferredContentSize: NSSize {
         NSSize(width: Self.collapsedSize.width, height: (isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height) + taskSectionHeight)
     }
@@ -13,10 +13,13 @@ final class LargeQuotaView: QuotaView {
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
     var onInstallCodex: (() -> Void)?
     var onOpenCodex: (() -> Void)?
+    var onTaskClick: ((String) -> Void)?
     private var guidanceButton: NSButton?
+    private var taskRows: [TaskRowView] = []
 
-    override func expansionDidChange() { rebuildGuidance() }
-    override func connectionStateDidChange() { rebuildGuidance() }
+    override func expansionDidChange() { rebuildGuidance(); rebuildTaskRows() }
+    override func connectionStateDidChange() { rebuildGuidance(); rebuildTaskRows() }
+    override func taskStatusesDidChange() { rebuildTaskRows() }
     override func draw(_ dirtyRect: NSRect) {
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
         NSColor(white: 0.14, alpha: 0.97).setFill(); card.fill()
@@ -77,18 +80,24 @@ final class LargeQuotaView: QuotaView {
         button.frame = NSRect(x: 16, y: Self.expandedBaseHeight + 4, width: 104, height: 28)
         addSubview(button); guidanceButton = button
     }
+    private func rebuildTaskRows() {
+        taskRows.forEach { $0.removeFromSuperview() }; taskRows.removeAll()
+        let startY = isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height
+        for (index, task) in taskStatuses.enumerated() {
+            let row = TaskRowView(status: task,
+                                  frame: NSRect(x: 10, y: startY + 4 + CGFloat(index) * 30,
+                                                width: 260, height: 28))
+            row.onClick = { [weak self] id in self?.onTaskClick?(id) }
+            addSubview(row); taskRows.append(row)
+        }
+    }
+    func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
     @objc private func installCodex() { onInstallCodex?() }
     @objc private func openCodex() { onOpenCodex?() }
     private func drawTaskRows(startY: CGFloat) {
         guard !taskStatuses.isEmpty else { return }
         NSColor.white.withAlphaComponent(0.09).setFill()
         NSRect(x: 1, y: startY, width: bounds.width-2, height: 0.5).fill()
-        for (index, task) in taskStatuses.enumerated() {
-            let y = startY + 7 + CGFloat(index) * 24
-            label(task.title, x: 16, y: y, width: 166, size: 10.5, color: .secondaryLabelColor)
-            let state = task.state == .running ? "Running" : "Completed"
-            label(state, x: 185, y: y, width: 79, size: 10.5, weight: .medium, color: TaskStatusPalette.color(for: task.state), alignment: .right)
-        }
     }
     private func label(_ value: String, x: CGFloat, y: CGFloat, width: CGFloat? = nil, size: CGFloat, weight: NSFont.Weight = .regular, color: NSColor = .labelColor, alignment: NSTextAlignment = .left) {
         let style = NSMutableParagraphStyle(); style.lineBreakMode = .byTruncatingTail

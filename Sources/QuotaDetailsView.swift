@@ -4,7 +4,7 @@ import AppKit
 final class QuotaDetailsView: NSView {
     static let preferredSize = NSSize(width: 246, height: 284)
     private var guidanceHeight: CGFloat { guidanceTitle == nil ? 0 : 38 }
-    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + guidanceHeight + CGFloat(taskStatuses.count) * 24) }
+    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + guidanceHeight + CGFloat(taskStatuses.count) * 30) }
     var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
     var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
     var taskStatuses: [WidgetTaskStatus] = [] { didSet { rebuildTaskRows() } }
@@ -14,12 +14,13 @@ final class QuotaDetailsView: NSView {
     var historyRetention: HistoryRetention = .session30Minutes { didSet { trend.retention = historyRetention } }
     var onInstallCodex: (() -> Void)?
     var onOpenCodex: (() -> Void)?
+    var onTaskClick: ((String) -> Void)?
     var showUsed = false { didSet { updateLabels() } }
     private let material = NSVisualEffectView()
     private var values: [NSTextField] = []
     private var resets: [NSTextField] = []
     private var forecastLabels: [NSTextField] = []
-    private var taskFields: [NSTextField] = []
+    private var taskRows: [TaskRowView] = []
     private var updated: NSTextField!
     private var automatic: NSTextField!
     private let trend = QuotaTrendView()
@@ -102,16 +103,16 @@ final class QuotaDetailsView: NSView {
         }
     }
     private func rebuildTaskRows() {
-        taskFields.forEach { $0.removeFromSuperview() }
-        taskFields.removeAll()
+        taskRows.forEach { $0.removeFromSuperview() }
+        taskRows.removeAll()
         for (index, task) in taskStatuses.enumerated() {
-            let y = Self.preferredSize.height + guidanceHeight + CGFloat(index) * 24
-            let title = label(task.title, frame: NSRect(x: 16, y: y, width: 140, height: 17), font: .systemFont(ofSize: 10, weight: .regular), color: .secondaryLabelColor)
-            let state = label(task.state == .running ? "Running" : "Completed", frame: NSRect(x: 160, y: y, width: 70, height: 17), font: .systemFont(ofSize: 10, weight: .medium), color: TaskStatusPalette.color(for: task.state))
-            state.alignment = .right
-            taskFields.append(contentsOf: [title, state])
+            let y = Self.preferredSize.height + guidanceHeight + CGFloat(index) * 30
+            let row = TaskRowView(status: task, frame: NSRect(x: 10, y: y, width: 226, height: 28))
+            row.onClick = { [weak self] id in self?.onTaskClick?(id) }
+            addSubview(row); taskRows.append(row)
         }
     }
+    func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
     private var guidanceTitle: String? {
         switch connectionState {
         case .codexNotInstalled: return "安装 Codex"
