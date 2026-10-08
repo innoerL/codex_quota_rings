@@ -5,7 +5,7 @@ final class PreviewSurface: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor(white: 0.9, alpha: 1).setFill(); bounds.fill()
         NSColor(white: 0.13, alpha: 1).setFill()
-        NSBezierPath(roundedRect: NSRect(x: 0, y: -20, width: 62, height: 240), xRadius: 16, yRadius: 16).fill()
+        NSBezierPath(roundedRect: NSRect(x: 0, y: -20, width: 62, height: 320), xRadius: 16, yRadius: 16).fill()
     }
 }
 
@@ -14,11 +14,21 @@ final class PreviewSurface: NSView {
         _ = NSApplication.shared
         let now = Date()
         let snapshot = QuotaSnapshot(fiveHour: QuotaWindow(usedPercent: 32, windowDurationMins: 300, resetsAt: now.timeIntervalSince1970 + 8760), week: QuotaWindow(usedPercent: 53, windowDurationMins: 10080, resetsAt: now.timeIntervalSince1970 + 295200), fetchedAt: now)
-        let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 224))
+        precondition(TaskStatusPalette.runningColor == NSColor(calibratedRed: 180 / 255, green: 138 / 255, blue: 74 / 255, alpha: 1),
+                     "FAIL: Running must use #B48A4A")
+        precondition(TaskStatusPalette.completedColor == NSColor(calibratedRed: 143 / 255, green: 169 / 255, blue: 144 / 255, alpha: 1),
+                     "FAIL: Completed must use #8FA990")
+        let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 300))
         let compact = QuotaView(frame: NSRect(origin: NSPoint(x: 5, y: 44), size: QuotaView.preferredSize))
         compact.snapshot = snapshot
         let card = QuotaDetailsView(frame: NSRect(origin: NSPoint(x: 55, y: 8), size: QuotaDetailsView.preferredSize))
         card.snapshot = snapshot
+        card.forecasts = QuotaForecasts(fiveHour: .depletedAt(now.addingTimeInterval(3_600)), week: .withinCurrentWindow)
+        card.taskStatuses = [
+            WidgetTaskStatus(id: "running", title: "迁移目录编写", state: .running),
+            WidgetTaskStatus(id: "completed", title: "新增礼物赠送记录表", state: .completed)
+        ]
+        card.frame.size = card.preferredContentSize
         root.addSubview(compact); root.addSubview(card)
         var opened = 0
         compact.onClick = { opened += 1 }
@@ -35,6 +45,6 @@ final class PreviewSurface: NSView {
             fputs("FAIL: transparent widget erased the sidebar background\n", stderr); exit(1)
         }
         try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
-        print("PASS: compact click, no refresh button, transparent compositing and native appearance render (sample values)")
+        print("PASS: compact click, task palette, no refresh button, transparent compositing and native appearance render")
     }
 }

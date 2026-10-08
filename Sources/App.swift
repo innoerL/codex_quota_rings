@@ -4,6 +4,8 @@ import CoreGraphics
 final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let client: QuotaClient
     private let defaults: UserDefaults
+    private var forecastEngine = QuotaForecastEngine()
+    private var receivedTaskStatuses: [WidgetTaskStatus] = []
     private let view = QuotaView(frame: NSRect(origin: .zero, size: QuotaView.preferredSize))
     private let largeView = LargeQuotaView(frame: NSRect(origin: .zero, size: LargeQuotaView.collapsedSize))
     private var preferences: WidgetPreferences
@@ -69,12 +71,11 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem.button?.toolTip = "Codex 额度双环"
         statusItem.button?.target = self; statusItem.button?.action = #selector(showMenu)
         client.onChange = { [weak self] snapshot, error in
-            self?.view.snapshot = snapshot
-            self?.view.connectionError = error
-            self?.details.snapshot = snapshot
-            self?.details.connectionError = error
-            self?.largeView.snapshot = snapshot
-            self?.largeView.connectionError = error
+            self?.applyQuota(snapshot: snapshot, error: error)
+        }
+        client.onTasksChange = { [weak self] statuses in
+            self?.receivedTaskStatuses = statuses
+            self?.applyTaskVisibility()
         }
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             self?.view.needsDisplay = true; self?.largeView.needsDisplay = true; self?.details.updateLabels()
@@ -194,6 +195,33 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         content.frame = NSRect(origin: .zero, size: size)
         panel.hasShadow = preferences.size == .large
     }
+    private func applyQuota(snapshot: QuotaSnapshot?, error: String?) {
+        let forecasts = snapshot.map { forecastEngine.record($0) } ?? .collecting
+        for target in [view as QuotaView, largeView as QuotaView] {
+            target.snapshot = snapshot
+            target.connectionError = error
+            target.forecasts = forecasts
+        }
+        details.snapshot = snapshot
+        details.connectionError = error
+        details.forecasts = forecasts
+    }
+    private func applyTaskVisibility() {
+        let frontmostID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let rows = WidgetVisibility.shouldShowTaskRows(frontmostBundleID: frontmostID) ? receivedTaskStatuses : []
+        guard largeView.taskStatuses != rows || details.taskStatuses != rows else { return }
+        view.taskStatuses = rows
+        largeView.taskStatuses = rows
+        details.taskStatuses = rows
+        if preferences.size == .large { configureLayout(restorePosition: false) }
+        else if detailsPanel.isVisible { resizeDetailsPanel() }
+    }
+    private func resizeDetailsPanel() {
+        let size = details.preferredContentSize
+        let current = detailsPanel.frame
+        details.frame = NSRect(origin: .zero, size: size)
+        detailsPanel.setFrame(NSRect(x: current.minX, y: current.maxY - size.height, width: size.width, height: size.height), display: true)
+    }
     @objc func toggleDetails() {
         if preferences.size == .large {
             guard shouldDisplayNow() else { return }
@@ -206,12 +234,13 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.isExpanded = true
         details.showUsed = view.showUsed
         let screen = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? panel.frame
-        let size = QuotaDetailsView.preferredSize
+        let size = details.preferredContentSize
         var x = panel.frame.maxX + 8
         if x + size.width > screen.maxX { x = panel.frame.minX - size.width - 8 }
         x = max(screen.minX, min(x, screen.maxX-size.width))
         let y = max(screen.minY, min(panel.frame.maxY + 36 - size.height, screen.maxY-size.height))
-        detailsPanel.setFrameOrigin(NSPoint(x: x, y: y))
+        details.frame = NSRect(origin: .zero, size: size)
+        detailsPanel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
         detailsPanel.orderFrontRegardless()
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
             guard let self else { return event }
@@ -254,6 +283,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                            hasCodexWindow: hasWindow, isDesktopVisible: !ordinaryWindow)
     }
     @objc private func refreshVisibility() {
+        applyTaskVisibility()
         if shouldDisplayNow() {
             if !panel.isVisible { panel.orderFrontRegardless() }
         } else {

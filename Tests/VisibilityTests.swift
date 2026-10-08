@@ -20,6 +20,10 @@ import Foundation
                 }
             }
         }
+        precondition(!WidgetVisibility.shouldShowTaskRows(frontmostBundleID: WidgetVisibility.hostBundleID),
+                     "FAIL: task rows must hide while Codex is focused")
+        precondition(WidgetVisibility.shouldShowTaskRows(frontmostBundleID: "com.apple.finder"),
+                     "FAIL: task rows must show outside focused Codex")
         print("PASS: \(count) display-scope combinations")
     }
 }

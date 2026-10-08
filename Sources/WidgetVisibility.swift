@@ -9,4 +9,7 @@ enum WidgetVisibility {
         case .focusDesktop: return frontmostBundleID == "com.apple.finder" && isDesktopVisible
         }
     }
+    static func shouldShowTaskRows(frontmostBundleID: String?) -> Bool {
+        frontmostBundleID != hostBundleID
+    }
 }

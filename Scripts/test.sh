@@ -22,7 +22,7 @@ compile Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Tests/Vis
 "$quota_test_dir/visibility"
 compile Sources/WidgetPreferences.swift Sources/WidgetMenu.swift Tests/MenuTests.swift -o "$quota_test_dir/menu"
 "$quota_test_dir/menu"
-quota_view_sources=(Sources/QuotaModel.swift Sources/WidgetPreferences.swift Sources/QuotaView.swift Sources/QuotaDetailsView.swift Sources/LargeQuotaView.swift)
+quota_view_sources=(Sources/QuotaModel.swift Sources/QuotaForecast.swift Sources/TaskStatus.swift Sources/WidgetPreferences.swift Sources/QuotaView.swift Sources/QuotaDetailsView.swift Sources/LargeQuotaView.swift)
 compile "${quota_view_sources[@]}" Tests/AppearanceCheck.swift -o "$quota_test_dir/appearance"
 "$quota_test_dir/appearance" "$PWD/build/detail-preview.png"
 compile "${quota_view_sources[@]}" Tests/LayoutTests.swift -o "$quota_test_dir/layout"

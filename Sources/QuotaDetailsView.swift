@@ -2,13 +2,18 @@ import AppKit
 
 /// Native popover material and labels; all data updates are automatic.
 final class QuotaDetailsView: NSView {
-    static let preferredSize = NSSize(width: 246, height: 154)
+    static let preferredSize = NSSize(width: 246, height: 188)
+    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + CGFloat(taskStatuses.count) * 24) }
     var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
+    var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
+    var taskStatuses: [WidgetTaskStatus] = [] { didSet { rebuildTaskRows() } }
     var connectionError: String? { didSet { updateLabels() } }
     var showUsed = false { didSet { updateLabels() } }
     private let material = NSVisualEffectView()
     private var values: [NSTextField] = []
     private var resets: [NSTextField] = []
+    private var forecastLabels: [NSTextField] = []
+    private var taskFields: [NSTextField] = []
     private var updated: NSTextField!
     private var automatic: NSTextField!
     override var isFlipped: Bool { true }
@@ -29,16 +34,17 @@ final class QuotaDetailsView: NSView {
         material.state = .active
         addSubview(material)
         for (index, title) in ["5 小时", "一周"].enumerated() {
-            let top = CGFloat(17 + index * 52)
+            let top = CGFloat(17 + index * 66)
             _ = label(title, frame: NSRect(x: 16, y: top, width: 100, height: 17), font: .systemFont(ofSize: 11, weight: .medium), color: .labelColor)
             let value = label("—", frame: NSRect(x: 147, y: top-1, width: 83, height: 19), font: .monospacedDigitSystemFont(ofSize: 13, weight: .semibold), color: .labelColor)
             value.alignment = .right; values.append(value)
             resets.append(label("", frame: NSRect(x: 16, y: top+22, width: 214, height: 15), font: .systemFont(ofSize: 9.5), color: .secondaryLabelColor))
+            forecastLabels.append(label("", frame: NSRect(x: 16, y: top+40, width: 214, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor))
         }
-        let separator = NSBox(frame: NSRect(x: 16, y: 118, width: 214, height: 1))
+        let separator = NSBox(frame: NSRect(x: 16, y: 150, width: 214, height: 1))
         separator.boxType = .separator; addSubview(separator)
-        updated = label("", frame: NSRect(x: 16, y: 129, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
-        automatic = label("自动刷新", frame: NSRect(x: 177, y: 129, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
+        updated = label("", frame: NSRect(x: 16, y: 161, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
+        automatic = label("自动刷新", frame: NSRect(x: 177, y: 161, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
         automatic.alignment = .right
         updateLabels()
     }
@@ -59,6 +65,7 @@ final class QuotaDetailsView: NSView {
             values[index].stringValue = value.map { "\(Int($0.rounded()))%" } ?? "—"
             values[index].textColor = outdated ? .tertiaryLabelColor : .labelColor
             resets[index].stringValue = quota?.resetDescription() ?? "重置时间暂不可用"
+            forecastLabels[index].stringValue = forecastText(index == 0 ? forecasts.fiveHour : forecasts.week)
         }
         if connectionError != nil { updated.stringValue = "连接中断 · 自动重试" }
         else if let snapshot {
@@ -66,5 +73,26 @@ final class QuotaDetailsView: NSView {
             updated.stringValue = "最近更新 \(format.string(from: snapshot.fetchedAt))" + (outdated ? " · 已过期" : "")
         } else { updated.stringValue = "正在读取额度…" }
         automatic.stringValue = showUsed ? "已用额度" : "自动刷新"
+    }
+    private func forecastText(_ forecast: QuotaForecast) -> String {
+        switch forecast {
+        case .collecting: return "收集中，稍后预测"
+        case .withinCurrentWindow: return "本周期内不会用尽"
+        case .depletedAt(let date):
+            let format = DateFormatter()
+            format.dateFormat = Calendar.current.isDateInToday(date) ? "预计 HH:mm 用尽" : "预计 M/d HH:mm 用尽"
+            return format.string(from: date)
+        }
+    }
+    private func rebuildTaskRows() {
+        taskFields.forEach { $0.removeFromSuperview() }
+        taskFields.removeAll()
+        for (index, task) in taskStatuses.enumerated() {
+            let y = 188 + CGFloat(index) * 24
+            let title = label(task.title, frame: NSRect(x: 16, y: y, width: 140, height: 17), font: .systemFont(ofSize: 10, weight: .regular), color: .secondaryLabelColor)
+            let state = label(task.state == .running ? "Running" : "Completed", frame: NSRect(x: 160, y: y, width: 70, height: 17), font: .systemFont(ofSize: 10, weight: .medium), color: TaskStatusPalette.color(for: task.state))
+            state.alignment = .right
+            taskFields.append(contentsOf: [title, state])
+        }
     }
 }

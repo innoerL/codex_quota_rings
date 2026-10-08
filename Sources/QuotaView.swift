@@ -11,6 +11,15 @@ extension QuotaLevel {
     }
 }
 
+enum TaskStatusPalette {
+    static let runningColor = NSColor(calibratedRed: 180 / 255, green: 138 / 255, blue: 74 / 255, alpha: 1)
+    static let completedColor = NSColor(calibratedRed: 143 / 255, green: 169 / 255, blue: 144 / 255, alpha: 1)
+
+    static func color(for state: WidgetTaskState) -> NSColor {
+        state == .running ? runningColor : completedColor
+    }
+}
+
 class QuotaView: NSView {
     static let preferredSize = NSSize(width: 42, height: 124)
     var smallLayout: SmallLayout = .vertical { didSet { needsDisplay = true } }
@@ -18,6 +27,8 @@ class QuotaView: NSView {
         smallLayout == .vertical ? Self.preferredSize : NSSize(width: 104, height: 68)
     }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
+    var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
+    var taskStatuses: [WidgetTaskStatus] = [] { didSet { needsDisplay = true; updateTooltip() } }
     var connectionError: String? { didSet { needsDisplay = true; updateTooltip() } }
     var showUsed = false { didSet { needsDisplay = true; updateTooltip() } }
     var onMenu: (() -> NSMenu)?
@@ -128,6 +139,18 @@ class QuotaView: NSView {
             return value.map { "\(Int($0.rounded()))%" } ?? "暂无数据"
         }
         setAccessibilityValue("5小时 \(values[0])，一周 \(values[1])")
+    }
+    func forecastText(_ forecast: QuotaForecast, at now: Date = Date()) -> String {
+        switch forecast {
+        case .collecting:
+            return "收集中，稍后预测"
+        case .withinCurrentWindow:
+            return "本周期内不会用尽"
+        case .depletedAt(let date):
+            let format = DateFormatter()
+            format.dateFormat = Calendar.current.isDate(date, inSameDayAs: now) ? "预计 HH:mm 用尽" : "预计 M/d HH:mm 用尽"
+            return format.string(from: date)
+        }
     }
     override func accessibilityPerformPress() -> Bool { onClick?(); return true }
 }
