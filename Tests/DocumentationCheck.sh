@@ -11,6 +11,17 @@ for readme in README.md README.zh-CN.md; do
     rg -qi '#B48A4A' "$readme"
     rg -qi '#8FA990' "$readme"
     rg -qi 'GitHub.*push|GitHub.*上传|GitHub.*推送|上传.*GitHub|推送.*GitHub' "$readme"
+    rg -qi 'zero.?configuration|no configuration|无需配置|零配置' "$readme"
+    rg -qi '30 minutes|30 分钟' "$readme"
+    rg -qi '24 hours|24 小时' "$readme"
+    rg -qi '7 days|7 天' "$readme"
+    rg -qi 'quota-history\.json' "$readme"
+    rg -qi 'delete|deletion|删除' "$readme"
+    rg -qi 'elapsed|duration|耗时' "$readme"
+    rg -qi 'foreground|activate Codex|前台|跳回 Codex' "$readme"
+    rg -qi 'Universal 2' "$readme"
+    rg -qi 'unzip|解压' "$readme"
+    rg -qi 'Gatekeeper|安全性' "$readme"
 done
 
-print 'PASS: bilingual documentation covers forecasts, task status, palette, and local-only builds'
+print 'PASS: bilingual documentation covers zero-config install, privacy, tasks, Universal 2, and local-only builds'

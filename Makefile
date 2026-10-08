@@ -11,7 +11,7 @@ run: build
 
 live-check:
 	mkdir -p build
-	swiftc -swift-version 5 -module-cache-path build/module-cache Sources/QuotaModel.swift Sources/QuotaForecast.swift Sources/TaskStatus.swift Sources/QuotaClient.swift Sources/WidgetPreferences.swift Sources/QuotaView.swift Tests/LiveCheck.swift -o build/live-check
+	swiftc -swift-version 5 -module-cache-path build/module-cache Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/QuotaForecast.swift Sources/TaskStatus.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexLocator.swift Sources/QuotaConnectionState.swift Sources/QuotaClient.swift Sources/QuotaView.swift Tests/LiveCheck.swift -o build/live-check
 	build/live-check build/live-preview.png
 
 clean:

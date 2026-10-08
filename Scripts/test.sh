@@ -37,6 +37,7 @@ compile "${quota_view_sources[@]}" Tests/AppearanceCheck.swift -o "$quota_test_d
 "$quota_test_dir/appearance" "$PWD/build/detail-preview.png"
 compile "${quota_view_sources[@]}" Tests/LayoutTests.swift -o "$quota_test_dir/layout"
 "$quota_test_dir/layout" "$PWD/build/layout-preview.png"
+zsh Tests/BuildScriptCheck.sh
 compile -D QUOTA_TEST Sources/*.swift Tests/ControllerTests.swift -o "$quota_test_dir/controller"
 "$quota_test_dir/controller" "$PWD/Tests/fake-codex.py" | tee "$quota_test_dir/controller-result"
 # AppKit can exit early in a headless or restricted session; exit 0 alone is insufficient.

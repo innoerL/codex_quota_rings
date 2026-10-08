@@ -2,99 +2,79 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-A small, native macOS widget that turns your remaining Codex quota into two easy-to-read rings—one for the **5-hour window**, one for the **weekly window**.
-
-Keep a compact pair of rings beside your work, or use an expandable desktop-style card to see reset countdowns and update times. Built with Swift and AppKit, with no web runtime or third-party app dependencies.
+A small native macOS widget for the remaining Codex quota in the 5-hour and weekly windows. It offers compact rings, an expandable desktop-style card, private quota trends, and the status of active Codex tasks.
 
 ![Large card, expanded details, and compact vertical and horizontal layouts using sample data](assets/layouts.png)
 
+## Install and use
+
+The packaged app is zero-configuration. Download or receive `Quota-Rings.app.zip`, unzip it, move **Quota Rings.app** to Applications, and open it. Quota Rings automatically discovers the registered Codex app, standard application folders, Homebrew locations, and the executable path. No Terminal command or path setting is needed.
+
+Open Codex and sign in normally. If Codex is absent, the expanded widget shows **Install Codex**. If authentication is required, it shows **Open Codex**. Discovery and connection retry automatically.
+
+The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macOS 12 as the minimum app target when a compatible Codex installation is available. This community build is ad-hoc signed rather than notarized. If Gatekeeper blocks it, use System Settings → Privacy & Security → Open Anyway after confirming where you obtained the archive.
+
 ## Features
 
-- **Three layouts:** a large horizontal card, compact vertical rings, or compact horizontal rings.
-- **Click for details:** expand the large card in place, or open a detail panel from a compact widget. No manual refresh button.
-- **Three visibility modes:** follow Codex focus (default), always show, or show on a clear Finder desktop.
-- **Automatic updates:** read limits every 30 seconds and receive available app-server quota notifications.
-- **Forecasts:** after four samples across two minutes, estimate when each quota window will run out. While gathering data it shows “Collecting, forecast soon”; when the estimate falls after reset it shows “Will not run out this window”.
-- **Background task status:** while Codex is not focused, show the real task title for every active local Codex thread. `Running` uses warm gold `#B48A4A`; a just-finished task becomes sage `Completed` `#8FA990` for five minutes, then disappears.
-- **A soft palette:** sage green above 50%, warm gold at 20–50%, and terracotta below 20%. Disconnected or stale data turns gray.
-- **Persistent settings:** size, orientation, visibility, and each layout’s position are saved independently.
-- **Native interaction:** drag to move; right-click the widget or use the menu bar ring to change settings. The widget does not take focus from your current app.
+- Large card, compact vertical rings, and compact horizontal rings.
+- Show when Codex is focused by default, always show, or show on a clear Finder desktop.
+- Native AppKit UI, 30-second quota updates, reset countdowns, and no manual refresh button.
+- Forecasts after four samples across two minutes. While collecting, the UI says a forecast is coming; estimates after reset are shown as “Will not run out this window”.
+- A reset-aware trend chart for both quota windows.
+- Real task titles for every currently running local Codex task. `Running` uses warm gold `#B48A4A`; `Completed` uses sage `#8FA990` and remains for five minutes.
+- Task elapsed duration starts when Quota Rings first observes a run, freezes on completion, and resets when Quota Rings restarts. Click a task to try its Codex thread; if the thread link is unsupported or fails, Codex is activated in the foreground.
+- Remaining quota colors: sage above 50%, warm gold at 20–50%, and terracotta below 20%.
 
-## Requirements
+## Controls
 
-- macOS 12 or later on Apple Silicon or Intel.
-- Xcode Command Line Tools (`xcode-select --install`).
-- A locally installed and authenticated Codex CLI supporting `codex app-server --listen stdio://` and account rate-limit queries.
-- Python 3 for the local protocol test fixture. Automated tests do not require an account or network access.
+Right-click the widget or use its menu bar ring to choose size, compact orientation, visibility, whether to show used quota, and trend retention. Drag the widget to move it. Each layout keeps its own position.
 
-## Build and run
+The Simplified Chinese menu offers:
+
+| Group | Choices |
+| --- | --- |
+| 大小 | 大 / 小 |
+| 小组件布局 | 竖向 / 横向 |
+| 显示范围 | 聚焦 Codex 时显示 / 一直显示 / 聚焦桌面时显示 |
+| 趋势记录 | 仅本次 · 30 分钟 / 保留 24 小时 / 保留 7 天 |
+
+## Privacy
+
+The default mode keeps only the latest **30 minutes** in memory and writes no trend file. Choosing **24 hours** or **7 days** explicitly stores timestamp and the two used percentages at:
+
+`~/Library/Application Support/Quota Rings/quota-history.json`
+
+Switching back to the 30-minute session mode immediately deletes that file. Task IDs, titles, task duration, account data, credentials, and raw protocol messages are never written into quota history. Task information stays in memory and is cleared on restart.
+
+Quota Rings communicates only with the local Codex app-server child process over stdio. It makes no separate network requests. Codex may use its existing authentication and network connection to retrieve account limits.
+
+## Build from source
+
+Developers need Xcode Command Line Tools and Python 3 for the protocol fixture.
 
 ```sh
 git clone https://github.com/innoerL/codex_quota_rings.git
 cd codex_quota_rings
+make test
 make build
-open 'build/Quota Rings.app'
 ```
 
-`make build` runs the test suite, builds for your current architecture, and applies an ad-hoc local signature. `make run` also opens the resulting app. Native window tests require a logged-in macOS graphical session.
+The build compiles arm64 and x86_64 separately, combines them as Universal 2, verifies the ad-hoc signature and ZIP, then writes:
 
-Every build stays local: it creates `build/Quota Rings.app`, copies a double-clickable bundle to `outputs/QuotaRings/Quota Rings.app`, and writes `outputs/QuotaRings/Quota-Rings.app.zip`. It does not perform a GitHub push, create a release, or send source code anywhere.
+- `build/Quota Rings.app`
+- `outputs/QuotaRings/Quota Rings.app`
+- `outputs/QuotaRings/Quota-Rings.app.zip`
 
-The app has a menu bar icon and no Dock icon. Quit from the menu bar ring or the widget’s context menu. This source release does not include a notarized installer or automatic updates.
-
-### Choosing a Codex executable
-
-The app searches `/usr/local/bin/codex`, `/opt/homebrew/bin/codex`, then `/Applications/Codex.app/Contents/Resources/codex`. To use another location, launch the executable directly:
-
-```sh
-QUOTA_CODEX_PATH="$(command -v codex)" 'build/Quota Rings.app/Contents/MacOS/QuotaRings'
-```
-
-Quota belongs to the account used by that CLI. If the desktop app and CLI use different accounts or configuration homes, their displayed limits may differ.
-
-## Visibility and controls
-
-The current interface is in Simplified Chinese:
-
-| Menu choice | Behavior |
-| --- | --- |
-| 大 / 小 | Large / small size |
-| 小组件布局 → 竖向 / 横向 | Compact vertical / horizontal layout |
-| 聚焦 Codex 时显示 | Show while Codex is foreground with a visible window; default |
-| 一直显示 | Float above other applications |
-| 聚焦桌面时显示 | Show when Finder is foreground and no ordinary app windows remain visible |
-
-Finder folder windows do not count as the desktop. Desktop mode hides conservatively if other application windows remain visible, including on another display, or if desktop state is uncertain. It is a floating AppKit app inspired by desktop widgets, not a WidgetKit extension in the system widget gallery. Stage Manager and multi-display behavior need broader compatibility testing.
-
-## Development
-
-```sh
-make test        # Deterministic model, protocol, settings, menu, rendering and window checks
-make live-check  # Optional: two read-only queries against your authenticated local account
-make clean       # Remove generated build/ files only
-```
-
-Synthetic previews are written to `build/`. Live checks are excluded from CI, and live-account captures must never be committed. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
-
-## Privacy
-
-The widget communicates with the local Codex CLI over stdio to initialize an app-server session, read rate limits, receive related notifications, and read the local active-thread list. It does not start model turns, modify account limits, inspect credential files, or record raw responses. Forecast samples and task titles remain in memory only; task titles are removed when the app quits. Only display settings and positions are persisted in macOS UserDefaults.
-
-The widget itself makes no remote network requests. The Codex CLI can use its existing authentication and network connection to retrieve limits; its behavior depends on your installed version and configuration.
+`make live-check` is an optional read-only account check. Native panel tests require a logged-in graphical macOS session. Every build stays local: it does not perform a GitHub push or upload, create a GitHub Release, or send source code elsewhere.
 
 ## Troubleshooting
 
-- **Widget is hidden:** the default mode follows Codex focus. Select “一直显示” from the menu bar ring to show it everywhere.
-- **CLI not found:** supply `QUOTA_CODEX_PATH` using the direct launch command above.
-- **Gray rings or no data:** check that the CLI is signed in and your account exposes both quota windows. The widget retries automatically; data older than 90 seconds is marked stale.
-- **Version compatibility:** app-server interfaces and desktop app identifiers may change. Not every Codex version or account type is guaranteed to expose compatible limits.
+- **Widget is hidden:** use the menu bar ring and select Always Show.
+- **Codex is missing:** open the widget details and choose Install Codex; Quota Rings keeps rediscovering it.
+- **No quota or gray rings:** open Codex, sign in, and leave it online while automatic retry reconnects.
+- **A task click only brings Codex forward:** the current Codex installation does not expose or accept that thread deep link; foreground activation is the intended fallback.
+- **History disappeared:** session-only data intentionally clears when the app quits, and selecting the 30-minute mode deletes persisted history.
 
-## Help make it better
+## Contributing and license
 
-[Open an issue](https://github.com/innoerL/codex_quota_rings/issues) with a reproducible bug or an idea, or submit a pull request. UI polish, desktop compatibility, accessibility, and translations are welcome. Please use synthetic values in shared screenshots.
-
-## License
-
-[MIT](LICENSE) © 2026 Codex Quota Rings contributors.
-
-This is an independent community project, not affiliated with or endorsed by OpenAI.
+Issues and pull requests are welcome at [innoerL/codex_quota_rings](https://github.com/innoerL/codex_quota_rings). Use synthetic values in public screenshots. The project uses the [MIT License](LICENSE) and is not affiliated with or endorsed by OpenAI.
