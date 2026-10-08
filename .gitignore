@@ -1,0 +1,13 @@
+.DS_Store
+build/
+outputs/
+work/
+.superpowers/
+*.app/
+*.dSYM/
+.build/
+.swiftpm/
+*.o
+*.swiftdoc
+*.swiftmodule
+*.swiftsourceinfo
