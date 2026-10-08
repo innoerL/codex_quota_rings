@@ -6,7 +6,7 @@ A small, native macOS widget that turns your remaining Codex quota into two easy
 
 Keep a compact pair of rings beside your work, or use an expandable desktop-style card to see reset countdowns and update times. Built with Swift and AppKit, with no web runtime or third-party app dependencies.
 
-![Large card, expanded details, and compact vertical and horizontal layouts using sample data](assets/layouts.png)
+The project includes synthetic layout previews generated locally with the test suite.
 
 ## Features
 
