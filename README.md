@@ -14,6 +14,8 @@ Keep a compact pair of rings beside your work, or use an expandable desktop-styl
 - **Click for details:** expand the large card in place, or open a detail panel from a compact widget. No manual refresh button.
 - **Three visibility modes:** follow Codex focus (default), always show, or show on a clear Finder desktop.
 - **Automatic updates:** read limits every 30 seconds and receive available app-server quota notifications.
+- **Forecasts:** after four samples across two minutes, estimate when each quota window will run out. While gathering data it shows “Collecting, forecast soon”; when the estimate falls after reset it shows “Will not run out this window”.
+- **Background task status:** while Codex is not focused, show the real task title for every active local Codex thread. `Running` uses warm gold `#B48A4A`; a just-finished task becomes sage `Completed` `#8FA990` for five minutes, then disappears.
 - **A soft palette:** sage green above 50%, warm gold at 20–50%, and terracotta below 20%. Disconnected or stale data turns gray.
 - **Persistent settings:** size, orientation, visibility, and each layout’s position are saved independently.
 - **Native interaction:** drag to move; right-click the widget or use the menu bar ring to change settings. The widget does not take focus from your current app.
@@ -35,6 +37,8 @@ open 'build/Quota Rings.app'
 ```
 
 `make build` runs the test suite, builds for your current architecture, and applies an ad-hoc local signature. `make run` also opens the resulting app. Native window tests require a logged-in macOS graphical session.
+
+Every build stays local: it creates `build/Quota Rings.app`, copies a double-clickable bundle to `outputs/QuotaRings/Quota Rings.app`, and writes `outputs/QuotaRings/Quota-Rings.app.zip`. It does not perform a GitHub push, create a release, or send source code anywhere.
 
 The app has a menu bar icon and no Dock icon. Quit from the menu bar ring or the widget’s context menu. This source release does not include a notarized installer or automatic updates.
 
@@ -74,7 +78,7 @@ Synthetic previews are written to `build/`. Live checks are excluded from CI, an
 
 ## Privacy
 
-The widget communicates with the local Codex CLI over stdio to initialize an app-server session, read rate limits, and receive related notifications. It does not start model turns, modify account limits, inspect credential files, record raw responses, or retain usage history. Only display settings and positions are persisted in macOS UserDefaults.
+The widget communicates with the local Codex CLI over stdio to initialize an app-server session, read rate limits, receive related notifications, and read the local active-thread list. It does not start model turns, modify account limits, inspect credential files, or record raw responses. Forecast samples and task titles remain in memory only; task titles are removed when the app quits. Only display settings and positions are persisted in macOS UserDefaults.
 
 The widget itself makes no remote network requests. The Codex CLI can use its existing authentication and network connection to retrieve limits; its behavior depends on your installed version and configuration.
 

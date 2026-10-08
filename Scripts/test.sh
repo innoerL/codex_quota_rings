@@ -33,3 +33,4 @@ compile -D QUOTA_TEST Sources/*.swift Tests/ControllerTests.swift -o "$quota_tes
 grep -q '^PASS: real panels' "$quota_test_dir/controller-result" || { print -u2 'FAIL: controller tests require a macOS graphical session'; exit 1; }
 zsh Tests/PublicTreeCheck.sh
 zsh Scripts/check-public-tree.sh
+zsh Tests/DocumentationCheck.sh
