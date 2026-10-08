@@ -6,6 +6,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let defaults: UserDefaults
     private var forecastEngine = QuotaForecastEngine()
     private var receivedTaskStatuses: [WidgetTaskStatus] = []
+    private var connectionState: QuotaConnectionState = .locating
     private let view = QuotaView(frame: NSRect(origin: .zero, size: QuotaView.preferredSize))
     private let largeView = LargeQuotaView(frame: NSRect(origin: .zero, size: LargeQuotaView.collapsedSize))
     private var preferences: WidgetPreferences
@@ -76,6 +77,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         client.onTasksChange = { [weak self] statuses in
             self?.receivedTaskStatuses = statuses
             self?.applyTaskVisibility()
+        }
+        client.onConnectionState = { [weak self] state in
+            self?.connectionState = state
         }
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             self?.view.needsDisplay = true; self?.largeView.needsDisplay = true; self?.details.updateLabels()

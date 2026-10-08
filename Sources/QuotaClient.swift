@@ -1,9 +1,19 @@
 import Foundation
 
+enum QuotaConnectionState: Equatable {
+    case locating
+    case ready
+    case codexNotInstalled
+    case authenticationRequired
+    case disconnected(String)
+}
+
 /// Owns one read-only app-server session. All mutable state lives on the main queue.
 final class QuotaClient {
     var onChange: ((QuotaSnapshot?, String?) -> Void)?
     var onTasksChange: (([WidgetTaskStatus]) -> Void)?
+    var onConnectionState: ((QuotaConnectionState) -> Void)?
+    private(set) var codexApplicationURL: URL?
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
@@ -20,8 +30,12 @@ final class QuotaClient {
     private var snapshot: QuotaSnapshot?
     private let taskStatusStore = TaskStatusStore()
     private let executableURL: URL?
+    private let locator: CodexLocating
 
-    init(executableURL: URL? = nil) { self.executableURL = executableURL }
+    init(executableURL: URL? = nil, locator: CodexLocating = CodexLocator()) {
+        self.executableURL = executableURL
+        self.locator = locator
+    }
 
     func start() {
         guard stopped else { return }
@@ -74,11 +88,20 @@ final class QuotaClient {
     }
     private func connect() {
         guard !stopped, process == nil else { return }
-        let candidates = [ProcessInfo.processInfo.environment["QUOTA_CODEX_PATH"],
-                          "/usr/local/bin/codex", "/opt/homebrew/bin/codex",
-                          "/Applications/Codex.app/Contents/Resources/codex"].compactMap { $0 }
-        let executable = executableURL ?? candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }).map { URL(fileURLWithPath: $0) }
-        guard let executable else { fail("找不到 Codex CLI，请安装 Codex 或设置 QUOTA_CODEX_PATH"); return }
+        onConnectionState?(.locating)
+        let location: CodexLocation?
+        if let executableURL {
+            location = CodexLocation(executableURL: executableURL, applicationURL: nil)
+        } else {
+            location = locator.locate()
+        }
+        guard let location else {
+            codexApplicationURL = nil
+            reportUnavailable(.codexNotInstalled, message: "未找到 Codex，将自动重试")
+            return
+        }
+        codexApplicationURL = location.applicationURL
+        let executable = location.executableURL
         let child = Process()
         child.executableURL = executable
         child.arguments = ["app-server", "--listen", "stdio://"]
@@ -133,15 +156,22 @@ final class QuotaClient {
                   let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
             if let id = object["id"] as? Int {
                 if id == 1 {
-                    guard object["result"] != nil else { fail("Codex 初始化失败，请检查本机登录"); return }
+                    guard object["result"] != nil else {
+                        if isAuthenticationError(object) { requireAuthentication() }
+                        else { fail("Codex 初始化失败，将自动重试") }
+                        return
+                    }
                     initialized = true
+                    onConnectionState?(.ready)
                     send(["method": "initialized"])
                     refresh()
                     refreshTasks()
                 } else if id == pendingID {
                     pendingID = nil
                     guard let result = object["result"] as? [String: Any] else {
-                        fail("无法读取额度，请检查网络和 Codex 登录状态"); return
+                        if isAuthenticationError(object) { requireAuthentication() }
+                        else { fail("无法读取额度，将自动重试") }
+                        return
                     }
                     accept(result)
                 } else if id == pendingTaskID {
@@ -180,9 +210,33 @@ final class QuotaClient {
     private func fail(_ message: String) {
         guard !stopped else { return }
         disconnect()
+        onConnectionState?(.disconnected(message))
         onChange?(snapshot, message)
+        scheduleRetry()
+    }
+    private func requireAuthentication() {
+        guard !stopped else { return }
+        let message = "请先在 Codex 中登录"
+        disconnect()
+        onConnectionState?(.authenticationRequired)
+        onChange?(snapshot, message)
+        scheduleRetry()
+    }
+    private func reportUnavailable(_ state: QuotaConnectionState, message: String) {
+        guard !stopped else { return }
+        onConnectionState?(state)
+        onChange?(snapshot, message)
+        scheduleRetry()
+    }
+    private func scheduleRetry() {
         retryTimer?.invalidate()
         retryTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in self?.connect() }
+    }
+    private func isAuthenticationError(_ object: [String: Any]) -> Bool {
+        guard let error = object["error"] as? [String: Any] else { return false }
+        let message = (error["message"] as? String ?? "").lowercased()
+        return message.contains("auth") || message.contains("sign in") || message.contains("login")
+            || message.contains("logged in") || message.contains("unauthorized")
     }
     private func disconnect() {
         generation = UUID()

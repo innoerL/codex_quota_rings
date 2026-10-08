@@ -6,7 +6,7 @@ trap 'rm -rf "$quota_test_dir"' EXIT
 quota_cache="${TMPDIR:-/tmp}/codex-quota-rings/module-cache"
 mkdir -p "$quota_cache" build
 # Web uploads and some ZIP extractors do not preserve executable mode bits.
-chmod +x Tests/fake-codex.py
+chmod +x Tests/fake-codex.py Tests/fake-codex-no-auth.py
 compile() { swiftc -swift-version 5 -module-cache-path "$quota_cache" "$@"; }
 compile Sources/QuotaModel.swift Tests/ModelTests.swift -o "$quota_test_dir/model"
 "$quota_test_dir/model"
@@ -14,8 +14,8 @@ compile Sources/QuotaModel.swift Sources/QuotaForecast.swift Tests/ForecastTests
 "$quota_test_dir/forecast"
 compile Sources/TaskStatus.swift Tests/TaskStatusTests.swift -o "$quota_test_dir/task-status"
 "$quota_test_dir/task-status"
-compile Sources/QuotaModel.swift Sources/TaskStatus.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
-"$quota_test_dir/protocol" "$PWD/Tests/fake-codex.py"
+compile Sources/QuotaModel.swift Sources/TaskStatus.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexLocator.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
+"$quota_test_dir/protocol" "$PWD/Tests/fake-codex.py" "$PWD/Tests/fake-codex-no-auth.py"
 compile Sources/WidgetPreferences.swift Tests/WidgetPreferencesTests.swift -o "$quota_test_dir/preferences"
 "$quota_test_dir/preferences"
 compile Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Tests/VisibilityTests.swift -o "$quota_test_dir/visibility"
