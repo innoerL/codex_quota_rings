@@ -56,6 +56,15 @@ import Foundation
         )).fiveHour
         precondition(missing == .collecting, "FAIL: missing quota percent must not produce a forecast")
 
+        var duplicateEngine = QuotaForecastEngine()
+        for (minute, used) in [(0, 10.0), (1, 20.0), (2, 30.0)] {
+            _ = duplicateEngine.record(snapshot(used: used, reset: start.addingTimeInterval(3_600).timeIntervalSince1970,
+                                               at: start.addingTimeInterval(Double(minute) * 60)))
+        }
+        let duplicate = duplicateEngine.record(snapshot(used: 30, reset: start.addingTimeInterval(3_600).timeIntervalSince1970,
+                                                        at: start.addingTimeInterval(120))).fiveHour
+        precondition(duplicate == .collecting, "FAIL: retrying a stale snapshot must not create an extra forecast sample")
+
         print("PASS: quota forecasts cover depletion, reset, idle, and new-window behavior")
     }
 }

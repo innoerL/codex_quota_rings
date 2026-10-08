@@ -18,9 +18,11 @@ import Foundation
         precondition(completed.first { $0.id == "first" }?.state == .completed, "FAIL: disappeared active task must become completed")
         precondition(completed.first { $0.id == "second" }?.state == .running, "FAIL: remaining active task must stay running")
 
-        let expired = store.update(active: [active[1]], at: start.addingTimeInterval(302))
+        guard let expired = store.expire(at: start.addingTimeInterval(302)) else {
+            fatalError("FAIL: completion expiry must publish a replacement task list")
+        }
         precondition(expired.count == 1 && expired.first?.id == "second" && expired.first?.state == .running,
-                     "FAIL: completed tasks must expire after five minutes without ending still-running tasks")
+                     "FAIL: completed tasks must expire after five minutes even when task polling has no valid response")
 
         let freshStore = TaskStatusStore()
         precondition(freshStore.update(active: [], at: start).isEmpty, "FAIL: unseen idle history must never become completed")

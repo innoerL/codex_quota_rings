@@ -75,6 +75,7 @@ final class QuotaDetailsView: NSView {
         automatic.stringValue = showUsed ? "已用额度" : "自动刷新"
     }
     private func forecastText(_ forecast: QuotaForecast) -> String {
+        guard connectionError == nil, snapshot?.isStale() != true else { return "收集中，稍后预测" }
         switch forecast {
         case .collecting: return "收集中，稍后预测"
         case .withinCurrentWindow: return "本周期内不会用尽"

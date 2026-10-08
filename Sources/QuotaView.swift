@@ -141,6 +141,7 @@ class QuotaView: NSView {
         setAccessibilityValue("5小时 \(values[0])，一周 \(values[1])")
     }
     func forecastText(_ forecast: QuotaForecast, at now: Date = Date()) -> String {
+        guard connectionError == nil, snapshot?.isStale(at: now) != true else { return "收集中，稍后预测" }
         switch forecast {
         case .collecting:
             return "收集中，稍后预测"

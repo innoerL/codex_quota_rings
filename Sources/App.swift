@@ -196,7 +196,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.hasShadow = preferences.size == .large
     }
     private func applyQuota(snapshot: QuotaSnapshot?, error: String?) {
-        let forecasts = snapshot.map { forecastEngine.record($0) } ?? .collecting
+        let forecasts = (error == nil ? snapshot.map { forecastEngine.record($0) } : nil) ?? .collecting
         for target in [view as QuotaView, largeView as QuotaView] {
             target.snapshot = snapshot
             target.connectionError = error

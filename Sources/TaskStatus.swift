@@ -24,23 +24,43 @@ final class TaskStatusStore {
     }
 
     private var records: [String: Record] = [:]
+    private var runningOrder: [String] = []
 
     func update(active: [ActiveCodexThread], at now: Date) -> [WidgetTaskStatus] {
         var activeIDs = Set<String>()
-        var running: [WidgetTaskStatus] = []
+        runningOrder.removeAll(keepingCapacity: true)
         for thread in active where activeIDs.insert(thread.id).inserted {
             records[thread.id] = Record(title: thread.title, state: .running, completedAt: nil)
-            running.append(WidgetTaskStatus(id: thread.id, title: thread.title, state: .running))
+            runningOrder.append(thread.id)
         }
 
         for (id, record) in records where record.state == .running && !activeIDs.contains(id) {
             records[id] = Record(title: record.title, state: .completed, completedAt: now)
         }
+        removeExpired(at: now)
+        return visibleStatuses()
+    }
+
+    /// Returns a replacement list only when a retained completion has expired.
+    func expire(at now: Date) -> [WidgetTaskStatus]? {
+        let before = visibleStatuses()
+        removeExpired(at: now)
+        let after = visibleStatuses()
+        return before == after ? nil : after
+    }
+
+    private func removeExpired(at now: Date) {
         records = records.filter { _, record in
             guard let completedAt = record.completedAt else { return true }
             return now.timeIntervalSince(completedAt) < 300
         }
+    }
 
+    private func visibleStatuses() -> [WidgetTaskStatus] {
+        let running = runningOrder.compactMap { id -> WidgetTaskStatus? in
+            guard let record = records[id], record.state == .running else { return nil }
+            return WidgetTaskStatus(id: id, title: record.title, state: .running)
+        }
         let completed = records.compactMap { id, record -> WidgetTaskStatus? in
             guard record.state == .completed else { return nil }
             return WidgetTaskStatus(id: id, title: record.title, state: .completed)

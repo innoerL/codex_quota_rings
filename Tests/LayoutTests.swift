@@ -18,6 +18,11 @@ import AppKit
             WidgetTaskStatus(id: "second", title: "新增礼物赠送记录表", state: .completed)
         ]
         large.forecasts = forecasts
+        let staleCompact = QuotaView(frame: .zero)
+        staleCompact.snapshot = QuotaSnapshot(fiveHour: sample.fiveHour, week: sample.week, fetchedAt: now.addingTimeInterval(-91))
+        staleCompact.forecasts = forecasts
+        precondition(staleCompact.forecastText(forecasts.fiveHour, at: now) == "收集中，稍后预测",
+                     "stale quota data must suppress a confident depletion forecast")
         var clicks = 0
         large.onClick = { large.isExpanded.toggle(); clicks += 1 }
         precondition(large.accessibilityPerformPress())

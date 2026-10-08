@@ -28,7 +28,10 @@ final class QuotaClient {
         stopped = false
         connect()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
-        taskPollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refreshTasks() }
+        taskPollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.expireTaskStatuses()
+            self?.refreshTasks()
+        }
     }
     func stop() {
         stopped = true
@@ -65,6 +68,9 @@ final class QuotaClient {
             guard let self, self.generation == token, self.pendingTaskID == id else { return }
             self.pendingTaskID = nil
         }
+    }
+    private func expireTaskStatuses() {
+        if let statuses = taskStatusStore.expire(at: Date()) { onTasksChange?(statuses) }
     }
     private func connect() {
         guard !stopped, process == nil else { return }

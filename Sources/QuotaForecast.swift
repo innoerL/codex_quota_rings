@@ -43,10 +43,18 @@ struct QuotaForecastEngine {
             samples.removeAll()
         }
 
+        if samples.last?.date == date {
+            return forecast(at: date, resetAt: resetAt, remainingPercent: remainingPercent, samples: samples)
+        }
+
         samples.append(Sample(usedPercent: usedPercent, resetAt: resetAt, date: date))
         let earliest = date.addingTimeInterval(-30 * 60)
         samples.removeAll { $0.date < earliest || abs($0.resetAt - resetAt) > 0.5 }
 
+        return forecast(at: date, resetAt: resetAt, remainingPercent: remainingPercent, samples: samples)
+    }
+
+    private static func forecast(at date: Date, resetAt: TimeInterval, remainingPercent: Double, samples: [Sample]) -> QuotaForecast {
         guard samples.count >= 4,
               let first = samples.first,
               date.timeIntervalSince(first.date) >= 120 else { return .collecting }
