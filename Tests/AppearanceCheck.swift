@@ -18,7 +18,7 @@ final class PreviewSurface: NSView {
                      "FAIL: Running must use #B48A4A")
         precondition(TaskStatusPalette.completedColor == NSColor(calibratedRed: 143 / 255, green: 169 / 255, blue: 144 / 255, alpha: 1),
                      "FAIL: Completed must use #8FA990")
-        let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 300))
+        let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 370))
         let compact = QuotaView(frame: NSRect(origin: NSPoint(x: 5, y: 44), size: QuotaView.preferredSize))
         compact.snapshot = snapshot
         let card = QuotaDetailsView(frame: NSRect(origin: NSPoint(x: 55, y: 8), size: QuotaDetailsView.preferredSize))

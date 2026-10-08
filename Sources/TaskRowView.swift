@@ -20,7 +20,7 @@ final class TaskRowView: NSView {
         titleField.lineBreakMode = .byTruncatingTail
         titleField.maximumNumberOfLines = 1
         titleField.isSelectable = false
-        statusField.font = .systemFont(ofSize: 9.5, weight: .medium)
+        statusField.font = .systemFont(ofSize: 9, weight: .medium)
         statusField.alignment = .right
         statusField.lineBreakMode = .byClipping
         statusField.isSelectable = false
@@ -35,7 +35,7 @@ final class TaskRowView: NSView {
 
     override func layout() {
         super.layout()
-        let statusWidth = min(132, max(108, bounds.width * 0.54))
+        let statusWidth = min(156, max(146, bounds.width * 0.60))
         titleField.frame = NSRect(x: 6, y: 5, width: max(20, bounds.width - statusWidth - 14), height: 17)
         statusField.frame = NSRect(x: bounds.width - statusWidth - 6, y: 5, width: statusWidth, height: 17)
     }

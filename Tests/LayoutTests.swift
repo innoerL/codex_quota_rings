@@ -49,8 +49,9 @@ import AppKit
         precondition(large.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["打开 Codex"])
         large.connectionState = .ready
         precondition(large.subviews.compactMap { $0 as? NSButton }.isEmpty)
+        large.isExpanded = false
 
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 470))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 650))
         root.wantsLayer = true; root.layer?.backgroundColor = NSColor(white: 0.10, alpha: 1).cgColor
         for (index, orientation) in SmallLayout.allCases.enumerated() {
             let view = QuotaView(frame: .zero)
@@ -58,11 +59,11 @@ import AppKit
             view.frame = NSRect(origin: NSPoint(x: 25 + index * 90, y: 20), size: view.preferredContentSize)
             root.addSubview(view)
         }
-        large.frame = NSRect(origin: NSPoint(x: 20, y: 240), size: large.preferredContentSize)
+        large.frame = NSRect(origin: NSPoint(x: 20, y: 380), size: large.preferredContentSize)
         root.addSubview(large)
         let expanded = LargeQuotaView(frame: .zero)
         expanded.isExpanded = true; expanded.snapshot = sample; expanded.forecasts = forecasts; expanded.taskStatuses = tasks
-        expanded.frame = NSRect(origin: NSPoint(x: 320, y: 70), size: expanded.preferredContentSize)
+        expanded.frame = NSRect(origin: NSPoint(x: 320, y: 60), size: expanded.preferredContentSize)
         root.addSubview(expanded)
         let detail = QuotaDetailsView(frame: .zero)
         detail.snapshot = sample; detail.forecasts = forecasts
