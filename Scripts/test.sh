@@ -14,7 +14,7 @@ compile Sources/QuotaModel.swift Sources/QuotaForecast.swift Tests/ForecastTests
 "$quota_test_dir/forecast"
 compile Sources/TaskStatus.swift Tests/TaskStatusTests.swift -o "$quota_test_dir/task-status"
 "$quota_test_dir/task-status"
-compile Sources/QuotaModel.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
+compile Sources/QuotaModel.swift Sources/TaskStatus.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
 "$quota_test_dir/protocol" "$PWD/Tests/fake-codex.py"
 compile Sources/WidgetPreferences.swift Tests/WidgetPreferencesTests.swift -o "$quota_test_dir/preferences"
 "$quota_test_dir/preferences"

@@ -3,6 +3,7 @@ import Foundation
 /// Owns one read-only app-server session. All mutable state lives on the main queue.
 final class QuotaClient {
     var onChange: ((QuotaSnapshot?, String?) -> Void)?
+    var onTasksChange: (([WidgetTaskStatus]) -> Void)?
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
@@ -10,11 +11,14 @@ final class QuotaClient {
     private var generation = UUID()
     private var initialized = false
     private var pendingID: Int?
+    private var pendingTaskID: Int?
     private var nextID = 1
     private var pollTimer: Timer?
+    private var taskPollTimer: Timer?
     private var retryTimer: Timer?
     private var stopped = true
     private var snapshot: QuotaSnapshot?
+    private let taskStatusStore = TaskStatusStore()
     private let executableURL: URL?
 
     init(executableURL: URL? = nil) { self.executableURL = executableURL }
@@ -24,10 +28,12 @@ final class QuotaClient {
         stopped = false
         connect()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
+        taskPollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refreshTasks() }
     }
     func stop() {
         stopped = true
         pollTimer?.invalidate(); pollTimer = nil
+        taskPollTimer?.invalidate(); taskPollTimer = nil
         retryTimer?.invalidate(); retryTimer = nil
         disconnect()
     }
@@ -46,6 +52,18 @@ final class QuotaClient {
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
             guard let self, self.generation == token, self.pendingID == id else { return }
             self.fail("额度请求超时，将自动重连")
+        }
+    }
+    private func refreshTasks() {
+        guard !stopped, let process, process.isRunning, initialized, pendingTaskID == nil else { return }
+        nextID += 1
+        let id = nextID
+        pendingTaskID = id
+        send(["id": id, "method": "thread/list"])
+        let token = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            guard let self, self.generation == token, self.pendingTaskID == id else { return }
+            self.pendingTaskID = nil
         }
     }
     private func connect() {
@@ -113,12 +131,16 @@ final class QuotaClient {
                     initialized = true
                     send(["method": "initialized"])
                     refresh()
+                    refreshTasks()
                 } else if id == pendingID {
                     pendingID = nil
                     guard let result = object["result"] as? [String: Any] else {
                         fail("无法读取额度，请检查网络和 Codex 登录状态"); return
                     }
                     accept(result)
+                } else if id == pendingTaskID {
+                    pendingTaskID = nil
+                    if let result = object["result"] as? [String: Any] { acceptTasks(result) }
                 }
             } else if object["method"] as? String == "account/rateLimits/updated",
                       let result = object["params"] as? [String: Any] {
@@ -137,6 +159,18 @@ final class QuotaClient {
             onChange?(snapshot, nil)
         } catch { fail("额度数据格式异常，将自动重试") }
     }
+    private func acceptTasks(_ result: [String: Any]) {
+        guard let rows = result["data"] as? [[String: Any]] else { return }
+        let active = rows.compactMap { row -> ActiveCodexThread? in
+            guard let id = row["id"] as? String,
+                  let status = row["status"] as? [String: Any],
+                  status["type"] as? String == "active" else { return nil }
+            let title = (row["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let preview = (row["preview"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return ActiveCodexThread(id: id, title: title?.isEmpty == false ? title! : (preview?.isEmpty == false ? preview! : "未命名任务"))
+        }
+        onTasksChange?(taskStatusStore.update(active: active, at: Date()))
+    }
     private func fail(_ message: String) {
         guard !stopped else { return }
         disconnect()
@@ -146,7 +180,7 @@ final class QuotaClient {
     }
     private func disconnect() {
         generation = UUID()
-        initialized = false; pendingID = nil; nextID = 1
+        initialized = false; pendingID = nil; pendingTaskID = nil; nextID = 1
         output?.readabilityHandler = nil
         process?.terminationHandler = nil
         try? input?.close()
