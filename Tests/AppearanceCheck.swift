@@ -24,6 +24,10 @@ final class PreviewSurface: NSView {
         let card = QuotaDetailsView(frame: NSRect(origin: NSPoint(x: 55, y: 8), size: QuotaDetailsView.preferredSize))
         card.snapshot = snapshot
         card.forecasts = QuotaForecasts(fiveHour: .depletedAt(now.addingTimeInterval(3_600)), week: .withinCurrentWindow)
+        card.historySamples = [
+            QuotaHistorySample(timestamp: now.addingTimeInterval(-600), fiveHourUsedPercent: 20, weekUsedPercent: 45),
+            QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)
+        ]
         card.taskStatuses = [
             WidgetTaskStatus(id: "running", title: "迁移目录编写", state: .running),
             WidgetTaskStatus(id: "completed", title: "新增礼物赠送记录表", state: .completed)

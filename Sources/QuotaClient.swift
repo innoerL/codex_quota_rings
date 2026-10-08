@@ -1,13 +1,5 @@
 import Foundation
 
-enum QuotaConnectionState: Equatable {
-    case locating
-    case ready
-    case codexNotInstalled
-    case authenticationRequired
-    case disconnected(String)
-}
-
 /// Owns one read-only app-server session. All mutable state lives on the main queue.
 final class QuotaClient {
     var onChange: ((QuotaSnapshot?, String?) -> Void)?

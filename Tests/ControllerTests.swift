@@ -34,6 +34,11 @@ import AppKit
         p.size = .small; app.applyPreferences(p)
         precondition(app.panel.frame.size == compactSize && app.panel.frame.origin == compactOrigin)
         app.toggleDetails(); precondition(app.detailsPanel.isVisible)
+        let detailTop = app.detailsPanel.frame.maxY
+        p.historyRetention = .local24Hours; app.applyPreferences(p)
+        app.toggleDetails(); precondition(app.detailsPanel.isVisible)
+        precondition(abs(app.detailsPanel.frame.maxY - detailTop) < 1,
+                     "history changes must preserve the compact detail top edge")
         p.smallLayout = .horizontal; app.applyPreferences(p)
         precondition(!app.detailsPanel.isVisible && app.panel.frame.width > app.panel.frame.height)
         precondition(WidgetPreferences.load(from: defaults) == p)

@@ -30,6 +30,8 @@ class QuotaView: NSView {
     var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
     var taskStatuses: [WidgetTaskStatus] = [] { didSet { needsDisplay = true; updateTooltip() } }
     var connectionError: String? { didSet { needsDisplay = true; updateTooltip() } }
+    var connectionState: QuotaConnectionState = .locating { didSet { needsDisplay = true; updateTooltip(); connectionStateDidChange() } }
+    func connectionStateDidChange() {}
     var showUsed = false { didSet { needsDisplay = true; updateTooltip() } }
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
@@ -38,7 +40,8 @@ class QuotaView: NSView {
     private var windowStart: NSPoint?
     private var dragged = false
     private var hovered = false
-    var isExpanded = false { didSet { needsDisplay = true } }
+    var isExpanded = false { didSet { needsDisplay = true; expansionDidChange() } }
+    func expansionDidChange() {}
     private var hoverTracking: NSTrackingArea?
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -130,7 +133,13 @@ class QuotaView: NSView {
             let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm:ss"
             lines.append("更新：\(formatter.string(from: snapshot.fetchedAt))")
         }
-        if let connectionError { lines.append(connectionError) }
+        switch connectionState {
+        case .codexNotInstalled: lines.append("未找到 Codex · 打开详情可安装")
+        case .authenticationRequired: lines.append("请先在 Codex 中登录 · 打开详情可启动 Codex")
+        case .disconnected(let message): lines.append(message)
+        case .locating: if snapshot == nil { lines.append("正在查找 Codex…") }
+        case .ready: if let connectionError { lines.append(connectionError) }
+        }
         toolTip = lines.joined(separator: "\n")
         setAccessibilityElement(true); setAccessibilityRole(.button)
         setAccessibilityLabel(lines.joined(separator: ", "))

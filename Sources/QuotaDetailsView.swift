@@ -2,12 +2,18 @@ import AppKit
 
 /// Native popover material and labels; all data updates are automatic.
 final class QuotaDetailsView: NSView {
-    static let preferredSize = NSSize(width: 246, height: 188)
-    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + CGFloat(taskStatuses.count) * 24) }
+    static let preferredSize = NSSize(width: 246, height: 284)
+    private var guidanceHeight: CGFloat { guidanceTitle == nil ? 0 : 38 }
+    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + guidanceHeight + CGFloat(taskStatuses.count) * 24) }
     var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
     var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
     var taskStatuses: [WidgetTaskStatus] = [] { didSet { rebuildTaskRows() } }
     var connectionError: String? { didSet { updateLabels() } }
+    var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance(); rebuildTaskRows() } }
+    var historySamples: [QuotaHistorySample] = [] { didSet { trend.samples = historySamples } }
+    var historyRetention: HistoryRetention = .session30Minutes { didSet { trend.retention = historyRetention } }
+    var onInstallCodex: (() -> Void)?
+    var onOpenCodex: (() -> Void)?
     var showUsed = false { didSet { updateLabels() } }
     private let material = NSVisualEffectView()
     private var values: [NSTextField] = []
@@ -16,6 +22,8 @@ final class QuotaDetailsView: NSView {
     private var taskFields: [NSTextField] = []
     private var updated: NSTextField!
     private var automatic: NSTextField!
+    private let trend = QuotaTrendView()
+    private var guidanceButton: NSButton?
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
@@ -41,10 +49,13 @@ final class QuotaDetailsView: NSView {
             resets.append(label("", frame: NSRect(x: 16, y: top+22, width: 214, height: 15), font: .systemFont(ofSize: 9.5), color: .secondaryLabelColor))
             forecastLabels.append(label("", frame: NSRect(x: 16, y: top+40, width: 214, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor))
         }
-        let separator = NSBox(frame: NSRect(x: 16, y: 150, width: 214, height: 1))
+        trend.frame = NSRect(x: 16, y: 148, width: 214, height: 96)
+        trend.autoresizingMask = [.width]
+        addSubview(trend)
+        let separator = NSBox(frame: NSRect(x: 16, y: 246, width: 214, height: 1))
         separator.boxType = .separator; addSubview(separator)
-        updated = label("", frame: NSRect(x: 16, y: 161, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
-        automatic = label("自动刷新", frame: NSRect(x: 177, y: 161, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
+        updated = label("", frame: NSRect(x: 16, y: 257, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
+        automatic = label("自动刷新", frame: NSRect(x: 177, y: 257, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
         automatic.alignment = .right
         updateLabels()
     }
@@ -67,11 +78,16 @@ final class QuotaDetailsView: NSView {
             resets[index].stringValue = quota?.resetDescription() ?? "重置时间暂不可用"
             forecastLabels[index].stringValue = forecastText(index == 0 ? forecasts.fiveHour : forecasts.week)
         }
-        if connectionError != nil { updated.stringValue = "连接中断 · 自动重试" }
-        else if let snapshot {
+        switch connectionState {
+        case .codexNotInstalled: updated.stringValue = "未找到 Codex"
+        case .authenticationRequired: updated.stringValue = "请先在 Codex 中登录"
+        case .disconnected: updated.stringValue = "连接中断 · 自动重试"
+        case .locating where snapshot == nil: updated.stringValue = "正在查找 Codex…"
+        default: if let snapshot {
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
             updated.stringValue = "最近更新 \(format.string(from: snapshot.fetchedAt))" + (outdated ? " · 已过期" : "")
         } else { updated.stringValue = "正在读取额度…" }
+        }
         automatic.stringValue = showUsed ? "已用额度" : "自动刷新"
     }
     private func forecastText(_ forecast: QuotaForecast) -> String {
@@ -89,11 +105,30 @@ final class QuotaDetailsView: NSView {
         taskFields.forEach { $0.removeFromSuperview() }
         taskFields.removeAll()
         for (index, task) in taskStatuses.enumerated() {
-            let y = 188 + CGFloat(index) * 24
+            let y = Self.preferredSize.height + guidanceHeight + CGFloat(index) * 24
             let title = label(task.title, frame: NSRect(x: 16, y: y, width: 140, height: 17), font: .systemFont(ofSize: 10, weight: .regular), color: .secondaryLabelColor)
             let state = label(task.state == .running ? "Running" : "Completed", frame: NSRect(x: 160, y: y, width: 70, height: 17), font: .systemFont(ofSize: 10, weight: .medium), color: TaskStatusPalette.color(for: task.state))
             state.alignment = .right
             taskFields.append(contentsOf: [title, state])
         }
     }
+    private var guidanceTitle: String? {
+        switch connectionState {
+        case .codexNotInstalled: return "安装 Codex"
+        case .authenticationRequired, .disconnected: return "打开 Codex"
+        default: return nil
+        }
+    }
+    private func rebuildGuidance() {
+        guidanceButton?.removeFromSuperview(); guidanceButton = nil
+        guard let title = guidanceTitle else { return }
+        let button = NSButton(title: title, target: self,
+                              action: title == "安装 Codex" ? #selector(installCodex) : #selector(openCodex))
+        button.bezelStyle = .rounded
+        button.controlSize = .small
+        button.frame = NSRect(x: 16, y: Self.preferredSize.height + 4, width: 104, height: 28)
+        addSubview(button); guidanceButton = button
+    }
+    @objc private func installCodex() { onInstallCodex?() }
+    @objc private func openCodex() { onOpenCodex?() }
 }

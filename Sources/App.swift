@@ -4,6 +4,7 @@ import CoreGraphics
 final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let client: QuotaClient
     private let defaults: UserDefaults
+    private let historyStore: QuotaHistoryStore
     private var forecastEngine = QuotaForecastEngine()
     private var receivedTaskStatuses: [WidgetTaskStatus] = []
     private var connectionState: QuotaConnectionState = .locating
@@ -23,9 +24,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var freshnessTimer: Timer?
     private var visibilityTimer: Timer?
 
-    init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient()) {
+    init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
         self.defaults = defaults; self.client = client
-        self.preferences = WidgetPreferences.load(from: defaults)
+        let loaded = WidgetPreferences.load(from: defaults)
+        self.preferences = loaded
+        let defaultHistoryURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Quota Rings", isDirectory: true)
+            .appendingPathComponent("quota-history.json")
+        self.historyStore = QuotaHistoryStore(retention: loaded.historyRetention,
+                                              fileURL: historyFileURL ?? defaultHistoryURL)
         super.init()
     }
 
@@ -64,6 +71,10 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.onDrag = { [weak self] in self?.hideDetails() }
         largeView.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         largeView.onClick = { [weak self] in self?.toggleDetails() }
+        largeView.onInstallCodex = { [weak self] in self?.installCodex() }
+        largeView.onOpenCodex = { [weak self] in self?.openCodex() }
+        details.onInstallCodex = { [weak self] in self?.installCodex() }
+        details.onOpenCodex = { [weak self] in self?.openCodex() }
         largeView.showUsed = view.showUsed
         widgetMenu.onChange = { [weak self] selection in self?.applyPreferences(selection) }
         configureLayout(restorePosition: true)
@@ -79,8 +90,10 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.applyTaskVisibility()
         }
         client.onConnectionState = { [weak self] state in
-            self?.connectionState = state
+            self?.applyConnectionState(state)
         }
+        publishHistory()
+        applyConnectionState(.locating)
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             self?.view.needsDisplay = true; self?.largeView.needsDisplay = true; self?.details.updateLabels()
         }
@@ -148,9 +161,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         if let error = view.connectionError { info(error) }
+        if let error = historyStore.persistenceError { info(error) }
         info("每30秒刷新 · 点击查看详情")
         menu.addItem(.separator())
         _ = action("额度详情", #selector(toggleDetails))
+        switch connectionState {
+        case .codexNotInstalled: _ = action("安装 Codex", #selector(installCodex))
+        case .authenticationRequired, .disconnected: _ = action("打开 Codex", #selector(openCodex))
+        default: break
+        }
         let used = action("显示已用百分比", #selector(toggleUsed)); used.state = view.showUsed ? .on : .off
         let options = widgetMenu.makeMenu()
         for item in options.items { options.removeItem(item); menu.addItem(item) }
@@ -168,12 +187,23 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         defaults.set(view.showUsed, forKey: "showUsed")
     }
     func applyPreferences(_ selection: WidgetPreferences) {
-        savePosition()
+        let previous = preferences
+        let structuralChange = previous.size != selection.size || previous.smallLayout != selection.smallLayout
+            || previous.displayScope != selection.displayScope
+        if structuralChange { savePosition() }
         let layoutChanged = preferences.positionKey != selection.positionKey
-        hideDetails(); largeView.isExpanded = false
+        if structuralChange { hideDetails(); largeView.isExpanded = false }
         preferences = selection; preferences.save(to: defaults)
         widgetMenu.preferences = selection
-        configureLayout(restorePosition: layoutChanged)
+        if previous.historyRetention != selection.historyRetention {
+            _ = historyStore.setRetention(selection.historyRetention, at: Date())
+            publishHistory()
+        }
+        if structuralChange { configureLayout(restorePosition: layoutChanged) }
+        else {
+            if preferences.size == .large, largeView.isExpanded { configureLayout(restorePosition: false) }
+            if detailsPanel.isVisible { resizeDetailsPanel() }
+        }
         refreshVisibility()
     }
     private func configureLayout(restorePosition: Bool) {
@@ -209,6 +239,24 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         details.snapshot = snapshot
         details.connectionError = error
         details.forecasts = forecasts
+        if error == nil, let snapshot, !snapshot.isStale() {
+            _ = historyStore.record(snapshot)
+            publishHistory()
+        }
+    }
+    private func publishHistory() {
+        let samples = historyStore.samples(at: Date())
+        largeView.historySamples = samples; largeView.historyRetention = historyStore.retention
+        details.historySamples = samples; details.historyRetention = historyStore.retention
+        if detailsPanel?.isVisible == true { resizeDetailsPanel() }
+    }
+    private func applyConnectionState(_ state: QuotaConnectionState) {
+        connectionState = state
+        view.connectionState = state
+        largeView.connectionState = state
+        details.connectionState = state
+        if preferences.size == .large, largeView.isExpanded { configureLayout(restorePosition: false) }
+        if detailsPanel?.isVisible == true { resizeDetailsPanel() }
     }
     private func applyTaskVisibility() {
         let frontmostID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -297,6 +345,19 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     @objc private func woke() { client.stop(); client.start() }
+    @objc private func installCodex() {
+        guard let url = URL(string: "https://chatgpt.com/download/") else { return }
+        NSWorkspace.shared.open(url)
+    }
+    @objc private func openCodex() {
+        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: WidgetVisibility.hostBundleID).first {
+            running.activate(options: [.activateAllWindows])
+        } else if let url = client.codexApplicationURL {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+        }
+    }
     @objc private func quit() { NSApp.terminate(nil) }
 }
 
