@@ -10,6 +10,10 @@ chmod +x Tests/fake-codex.py
 compile() { swiftc -swift-version 5 -module-cache-path "$quota_cache" "$@"; }
 compile Sources/QuotaModel.swift Tests/ModelTests.swift -o "$quota_test_dir/model"
 "$quota_test_dir/model"
+compile Sources/QuotaModel.swift Sources/QuotaForecast.swift Tests/ForecastTests.swift -o "$quota_test_dir/forecast"
+"$quota_test_dir/forecast"
+compile Sources/TaskStatus.swift Tests/TaskStatusTests.swift -o "$quota_test_dir/task-status"
+"$quota_test_dir/task-status"
 compile Sources/QuotaModel.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
 "$quota_test_dir/protocol" "$PWD/Tests/fake-codex.py"
 compile Sources/WidgetPreferences.swift Tests/WidgetPreferencesTests.swift -o "$quota_test_dir/preferences"
