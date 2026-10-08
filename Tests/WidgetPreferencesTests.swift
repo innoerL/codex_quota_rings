@@ -6,8 +6,10 @@ import Foundation
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         var p = WidgetPreferences.load(from: defaults)
-        precondition(p.size == .small && p.smallLayout == .vertical && p.displayScope == .focusCodex)
+        precondition(p.size == .small && p.smallLayout == .vertical && p.displayScope == .focusCodex
+                     && p.historyRetention == .session30Minutes)
         p.smallLayout = .horizontal; p.displayScope = .focusDesktop; p.size = .large
+        p.historyRetention = .local24Hours
         p.save(to: defaults)
         let restored = WidgetPreferences.load(from: defaults)
         precondition(restored == p)
@@ -17,10 +19,16 @@ import Foundation
             p.displayScope = scope; p.save(to: defaults)
             precondition(WidgetPreferences.load(from: defaults) == p)
         }
+        for retention in HistoryRetention.allCases {
+            p.historyRetention = retention; p.save(to: defaults)
+            precondition(WidgetPreferences.load(from: defaults) == p)
+        }
         defaults.set("invalid", forKey: "widget.size")
         defaults.set("invalid", forKey: "widget.displayScope")
+        defaults.set("invalid", forKey: "widget.historyRetention")
         let repaired = WidgetPreferences.load(from: defaults)
-        precondition(repaired.size == .small && repaired.displayScope == .focusCodex)
+        precondition(repaired.size == .small && repaired.displayScope == .focusCodex
+                     && repaired.historyRetention == .session30Minutes)
         precondition(repaired.smallLayout == .horizontal)
         print("PASS: preference defaults, round trips, independence and invalid-value recovery")
     }
