@@ -5,6 +5,8 @@ quota_test_dir=$(mktemp -d "${TMPDIR:-/tmp}/quota-rings-tests.XXXXXX")
 trap 'rm -rf "$quota_test_dir"' EXIT
 quota_cache="${TMPDIR:-/tmp}/codex-quota-rings/module-cache"
 mkdir -p "$quota_cache" build
+# Web uploads and some ZIP extractors do not preserve executable mode bits.
+chmod +x Tests/fake-codex.py
 compile() { swiftc -swift-version 5 -module-cache-path "$quota_cache" "$@"; }
 compile Sources/QuotaModel.swift Tests/ModelTests.swift -o "$quota_test_dir/model"
 "$quota_test_dir/model"
