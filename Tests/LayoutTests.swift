@@ -18,6 +18,11 @@ import AppKit
             WidgetTaskStatus(id: "first", title: "迁移目录编写", state: .running),
             WidgetTaskStatus(id: "second", title: "新增礼物赠送记录表", state: .completed)
         ]
+        compact.taskStatuses = tasks
+        precondition(compact.preferredContentSize.width >= 160 && compact.preferredContentSize.height > QuotaView.preferredSize.height,
+                     "compact rings must expand into a readable task card when tasks are active")
+        precondition(compact.subviews.compactMap { $0 as? TaskRowView }.count == tasks.count,
+                     "compact rings must display every active task title and status")
         large.forecasts = forecasts
         let staleCompact = QuotaView(frame: .zero)
         staleCompact.snapshot = QuotaSnapshot(fiveHour: sample.fiveHour, week: sample.week, fetchedAt: now.addingTimeInterval(-91))
@@ -60,6 +65,7 @@ import AppKit
         for (index, orientation) in SmallLayout.allCases.enumerated() {
             let view = QuotaView(frame: .zero)
             view.smallLayout = orientation; view.snapshot = sample
+            if orientation == .vertical { view.taskStatuses = tasks }
             view.frame = NSRect(origin: NSPoint(x: 25 + index * 90, y: 20), size: view.preferredContentSize)
             root.addSubview(view)
         }

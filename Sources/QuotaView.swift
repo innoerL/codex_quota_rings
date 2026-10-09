@@ -23,12 +23,18 @@ enum TaskStatusPalette {
 class QuotaView: NSView {
     static let preferredSize = NSSize(width: 42, height: 124)
     var smallLayout: SmallLayout = .vertical { didSet { needsDisplay = true } }
-    var preferredContentSize: NSSize {
+    private var baseContentSize: NSSize {
         smallLayout == .vertical ? Self.preferredSize : NSSize(width: 104, height: 68)
+    }
+    private var taskSectionHeight: CGFloat { taskStatuses.isEmpty ? 0 : 8 + CGFloat(taskStatuses.count) * 30 }
+    var preferredContentSize: NSSize {
+        let base = baseContentSize
+        guard !taskStatuses.isEmpty else { return base }
+        return NSSize(width: max(172, base.width), height: base.height + taskSectionHeight)
     }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
     var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
-    var taskStatuses: [WidgetTaskStatus] = [] { didSet { needsDisplay = true; updateTooltip(); taskStatusesDidChange() } }
+    var taskStatuses: [WidgetTaskStatus] = [] { didSet { needsDisplay = true; updateTooltip(); rebuildTaskRows(); taskStatusesDidChange() } }
     func taskStatusesDidChange() {}
     var connectionError: String? { didSet { needsDisplay = true; updateTooltip() } }
     var connectionState: QuotaConnectionState = .locating { didSet { needsDisplay = true; updateTooltip(); connectionStateDidChange() } }
@@ -37,6 +43,8 @@ class QuotaView: NSView {
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
     var onDrag: (() -> Void)?
+    var onTaskClick: ((String) -> Void)?
+    private var taskRows: [TaskRowView] = []
     private var dragStart: NSPoint?
     private var windowStart: NSPoint?
     private var dragged = false
@@ -116,9 +124,9 @@ class QuotaView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         // A quiet sidebar control at rest, with a subtle macOS-style hover surface.
-        if hovered || isExpanded {
+        if hovered || isExpanded || !taskStatuses.isEmpty {
             let surface = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 6), xRadius: 13, yRadius: 13)
-            NSColor.white.withAlphaComponent(isExpanded ? 0.075 : 0.045).setFill(); surface.fill()
+            NSColor.white.withAlphaComponent(isExpanded || !taskStatuses.isEmpty ? 0.075 : 0.045).setFill(); surface.fill()
             NSColor.white.withAlphaComponent(0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26, y: 30), title: "5 小时")
@@ -128,6 +136,19 @@ class QuotaView: NSView {
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()
         }
     }
+    func rebuildTaskRows() {
+        taskRows.forEach { $0.removeFromSuperview() }
+        taskRows.removeAll()
+        let startY = baseContentSize.height + 4
+        for (index, task) in taskStatuses.enumerated() {
+            let row = TaskRowView(status: task,
+                                  frame: NSRect(x: 4, y: startY + CGFloat(index) * 30,
+                                                width: max(20, preferredContentSize.width - 8), height: 28))
+            row.onClick = { [weak self] id in self?.onTaskClick?(id) }
+            addSubview(row); taskRows.append(row)
+        }
+    }
+    func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
     func updateTooltip() {
         var lines = ["Codex \(showUsed ? "已用" : "剩余")额度 · 每30秒刷新", "点击查看详情 · 拖动移动 · 右键菜单"]
         if let snapshot {

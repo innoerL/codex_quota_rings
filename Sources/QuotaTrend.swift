@@ -43,7 +43,22 @@ enum QuotaTrendRenderer {
     static let chartHeight: CGFloat = 72
 
     static func draw(series: QuotaTrendSeries, retention: HistoryRetention, in rect: CGRect) {
-        let chart = rect.insetBy(dx: 1, dy: 15)
+        draw(series: series, retention: retention, timeRange: nil, in: rect)
+    }
+
+    static func draw(samples: [QuotaHistorySample], retention: HistoryRetention, in rect: CGRect) {
+        draw(series: .make(samples: samples), retention: retention, timeRange: timeRange(for: samples), in: rect)
+    }
+
+    static func timeRange(for samples: [QuotaHistorySample]) -> (start: Date, end: Date)? {
+        guard let start = samples.map(\.timestamp).min(), let end = samples.map(\.timestamp).max() else { return nil }
+        return (start, end)
+    }
+
+    private static func draw(series: QuotaTrendSeries, retention: HistoryRetention,
+                             timeRange: (start: Date, end: Date)?, in rect: CGRect) {
+        let chart = NSRect(x: rect.minX + 29, y: rect.minY + 17,
+                           width: max(24, rect.width - 30), height: max(22, rect.height - 35))
         NSColor.white.withAlphaComponent(0.045).setFill()
         NSBezierPath(roundedRect: chart, xRadius: 7, yRadius: 7).fill()
         for fraction in [0.25, 0.5, 0.75] as [CGFloat] {
@@ -60,16 +75,27 @@ enum QuotaTrendRenderer {
             drawText("正在收集趋势数据", at: NSPoint(x: chart.midX, y: chart.midY - 6), centered: true,
                      color: .tertiaryLabelColor)
         }
-        drawLegendDot(at: NSPoint(x: rect.minX + 2, y: rect.maxY - 7), color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1))
-        drawText("5 小时用量", at: NSPoint(x: rect.minX + 10, y: rect.maxY - 13), color: .secondaryLabelColor)
+        let tickColor = NSColor.tertiaryLabelColor
+        drawRightText("100%", at: NSPoint(x: chart.minX - 5, y: chart.minY - 4), color: tickColor)
+        drawRightText("50%", at: NSPoint(x: chart.minX - 5, y: chart.midY - 4), color: tickColor)
+        drawRightText("0%", at: NSPoint(x: chart.minX - 5, y: chart.maxY - 10), color: tickColor)
+        drawLegendDot(at: NSPoint(x: rect.minX + 2, y: rect.minY + 3), color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1))
+        drawText("5 小时用量", at: NSPoint(x: rect.minX + 10, y: rect.minY), color: .secondaryLabelColor)
         let range: String
         switch retention {
         case .session30Minutes: range = "近 30 分钟"
         case .local24Hours: range = "近 24 小时"
         case .local7Days: range = "近 7 天"
         }
-        let width = (range as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 8.5)]).width
-        drawText(range, at: NSPoint(x: rect.maxX - width, y: rect.maxY - 13), color: .tertiaryLabelColor)
+        drawRightText(range, at: NSPoint(x: rect.maxX, y: rect.minY), color: .tertiaryLabelColor)
+        if let timeRange {
+            let formatter = DateFormatter(); formatter.dateFormat = "HH:mm"
+            drawText(formatter.string(from: timeRange.start), at: NSPoint(x: chart.minX, y: rect.maxY - 12), color: tickColor)
+            drawRightText("现在 \(formatter.string(from: timeRange.end))", at: NSPoint(x: chart.maxX, y: rect.maxY - 12), color: tickColor)
+        } else {
+            drawText("开始", at: NSPoint(x: chart.minX, y: rect.maxY - 12), color: tickColor)
+            drawRightText("现在", at: NSPoint(x: chart.maxX, y: rect.maxY - 12), color: tickColor)
+        }
     }
 
     private static func draw(_ segments: [[QuotaTrendPoint]], color: NSColor, in rect: CGRect) {
@@ -96,6 +122,12 @@ enum QuotaTrendRenderer {
         let size = (text as NSString).size(withAttributes: attributes)
         (text as NSString).draw(at: NSPoint(x: centered ? point.x - size.width / 2 : point.x, y: point.y), withAttributes: attributes)
     }
+
+    private static func drawRightText(_ text: String, at point: NSPoint, color: NSColor) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 8.5), .foregroundColor: color]
+        let width = (text as NSString).size(withAttributes: attributes).width
+        (text as NSString).draw(at: NSPoint(x: point.x - width, y: point.y), withAttributes: attributes)
+    }
 }
 
 final class QuotaTrendView: NSView {
@@ -103,6 +135,6 @@ final class QuotaTrendView: NSView {
     var retention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
-        QuotaTrendRenderer.draw(series: .make(samples: samples), retention: retention, in: bounds)
+        QuotaTrendRenderer.draw(samples: samples, retention: retention, in: bounds)
     }
 }

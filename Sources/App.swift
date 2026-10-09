@@ -80,6 +80,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         details.onOpenCodex = { [weak self] in self?.openCodex() }
         largeView.onTaskClick = { [weak self] id in self?.openTask(id) }
         details.onTaskClick = { [weak self] id in self?.openTask(id) }
+        view.onTaskClick = { [weak self] id in self?.openTask(id) }
         largeView.showUsed = view.showUsed
         widgetMenu.onChange = { [weak self] selection in self?.applyPreferences(selection) }
         configureLayout(restorePosition: true)
@@ -103,7 +104,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard let self else { return }
             self.view.needsDisplay = true; self.largeView.needsDisplay = true; self.details.updateLabels()
             let now = Date()
-            self.largeView.refreshTaskDurations(at: now); self.details.refreshTaskDurations(at: now)
+            self.view.refreshTaskDurations(at: now); self.largeView.refreshTaskDurations(at: now); self.details.refreshTaskDurations(at: now)
             self.publishHistory()
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
@@ -278,7 +279,10 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         largeView.taskStatuses = rows
         details.taskStatuses = rows
         if preferences.size == .large { configureLayout(restorePosition: false) }
-        else if detailsPanel.isVisible { resizeDetailsPanel() }
+        else {
+            configureLayout(restorePosition: false)
+            if detailsPanel.isVisible { resizeDetailsPanel() }
+        }
     }
     private func resizeDetailsPanel() {
         let size = details.preferredContentSize

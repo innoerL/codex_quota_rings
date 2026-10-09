@@ -14,7 +14,6 @@ final class LargeQuotaView: QuotaView {
     var canOpenCodex = false { didSet { rebuildGuidance(); rebuildTaskRows() } }
     var onInstallCodex: (() -> Void)?
     var onOpenCodex: (() -> Void)?
-    var onTaskClick: ((String) -> Void)?
     private var guidanceButton: NSButton?
     private var taskRows: [TaskRowView] = []
 
@@ -60,7 +59,7 @@ final class LargeQuotaView: QuotaView {
                     label(forecastText(item.2), x: 16, y: y + 41, size: 10.5, weight: .medium, color: .secondaryLabelColor)
                 }
             }
-            QuotaTrendRenderer.draw(series: .make(samples: historySamples), retention: historyRetention,
+            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
                                     in: NSRect(x: 16, y: 322, width: 248, height: 96))
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
             label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16, y: 432, size: 10, color: .secondaryLabelColor)
@@ -84,7 +83,7 @@ final class LargeQuotaView: QuotaView {
         button.frame = NSRect(x: 16, y: Self.expandedBaseHeight + 4, width: 104, height: 28)
         addSubview(button); guidanceButton = button
     }
-    private func rebuildTaskRows() {
+    override func rebuildTaskRows() {
         taskRows.forEach { $0.removeFromSuperview() }; taskRows.removeAll()
         let startY = isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height
         for (index, task) in taskStatuses.enumerated() {
@@ -95,7 +94,7 @@ final class LargeQuotaView: QuotaView {
             addSubview(row); taskRows.append(row)
         }
     }
-    func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
+    override func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
     @objc private func installCodex() { onInstallCodex?() }
     @objc private func openCodex() { onOpenCodex?() }
     private func drawTaskRows(startY: CGFloat) {

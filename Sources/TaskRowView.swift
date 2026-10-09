@@ -35,7 +35,7 @@ final class TaskRowView: NSView {
 
     override func layout() {
         super.layout()
-        let statusWidth = min(156, max(146, bounds.width * 0.60))
+        let statusWidth = min(140, max(80, bounds.width * 0.50))
         titleField.frame = NSRect(x: 6, y: 5, width: max(20, bounds.width - statusWidth - 14), height: 17)
         statusField.frame = NSRect(x: bounds.width - statusWidth - 6, y: 5, width: statusWidth, height: 17)
     }
