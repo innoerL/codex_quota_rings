@@ -7,12 +7,11 @@ struct QuotaTrendPoint: Equatable {
 
 struct QuotaTrendSeries: Equatable {
     let fiveHour: [[QuotaTrendPoint]]
-    let week: [[QuotaTrendPoint]]
 
     static func make(samples: [QuotaHistorySample]) -> QuotaTrendSeries {
         let ordered = samples.sorted { $0.timestamp < $1.timestamp }
         guard let first = ordered.first?.timestamp, let last = ordered.last?.timestamp else {
-            return QuotaTrendSeries(fiveHour: [], week: [])
+            return QuotaTrendSeries(fiveHour: [])
         }
         let span = max(0, last.timeIntervalSince(first))
         func segments(value: (QuotaHistorySample) -> Double?) -> [[QuotaTrendPoint]] {
@@ -36,8 +35,7 @@ struct QuotaTrendSeries: Equatable {
             if !current.isEmpty { result.append(current) }
             return result
         }
-        return QuotaTrendSeries(fiveHour: segments { $0.fiveHourUsedPercent },
-                                week: segments { $0.weekUsedPercent })
+        return QuotaTrendSeries(fiveHour: segments { $0.fiveHourUsedPercent })
     }
 }
 
@@ -57,17 +55,13 @@ enum QuotaTrendRenderer {
         }
 
         draw(series.fiveHour, color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1), in: chart)
-        draw(series.week, color: NSColor(srgbRed: 143/255, green: 169/255, blue: 144/255, alpha: 1), in: chart)
-
-        let hasAny = !(series.fiveHour.isEmpty && series.week.isEmpty)
+        let hasAny = !series.fiveHour.isEmpty
         if !hasAny {
             drawText("正在收集趋势数据", at: NSPoint(x: chart.midX, y: chart.midY - 6), centered: true,
                      color: .tertiaryLabelColor)
         }
         drawLegendDot(at: NSPoint(x: rect.minX + 2, y: rect.maxY - 7), color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1))
-        drawText("5 小时", at: NSPoint(x: rect.minX + 10, y: rect.maxY - 13), color: .secondaryLabelColor)
-        drawLegendDot(at: NSPoint(x: rect.minX + 55, y: rect.maxY - 7), color: NSColor(srgbRed: 143/255, green: 169/255, blue: 144/255, alpha: 1))
-        drawText("一周", at: NSPoint(x: rect.minX + 63, y: rect.maxY - 13), color: .secondaryLabelColor)
+        drawText("5 小时用量", at: NSPoint(x: rect.minX + 10, y: rect.maxY - 13), color: .secondaryLabelColor)
         let range: String
         switch retention {
         case .session30Minutes: range = "近 30 分钟"

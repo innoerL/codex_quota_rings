@@ -71,6 +71,14 @@ import AppKit
         root.addSubview(expanded)
         let detail = QuotaDetailsView(frame: .zero)
         detail.snapshot = sample; detail.forecasts = forecasts
+        let forecastFields = detail.subviews.compactMap { $0 as? NSTextField }
+            .filter { $0.stringValue.hasPrefix("预计") }
+        precondition(forecastFields.count == 1, "only the five-hour quota should show a depletion forecast")
+        precondition(forecastFields[0].textColor?.isEqual(NSColor.secondaryLabelColor) == true,
+                     "forecast text must remain legible against the dark card")
+        precondition(!detail.subviews.compactMap { $0 as? NSTextField }
+            .contains(where: { $0.stringValue == "本周期内不会用尽" }),
+                     "weekly quota must not claim a depletion forecast")
         let detailWithoutTasks = detail.preferredContentSize.height
         detail.historySamples = []
         let emptyHistoryHeight = detail.preferredContentSize.height

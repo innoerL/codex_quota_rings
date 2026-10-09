@@ -19,8 +19,8 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 - Large card, compact vertical rings, and compact horizontal rings.
 - Show when Codex is focused by default, always show, or show on a clear Finder desktop.
 - Native AppKit UI, 30-second quota updates, reset countdowns, and no manual refresh button.
-- Forecasts after four samples across two minutes. While collecting, the UI says a forecast is coming; estimates after reset are shown as “Will not run out this window”.
-- A reset-aware trend chart for both quota windows.
+- Five-hour forecasts after four samples across two minutes. While collecting, the UI says a forecast is coming; estimates after reset are shown as “Will not run out this window”.
+- A reset-aware trend chart for the five-hour quota window.
 - Real task titles for every currently running local Codex task. `Running` uses warm gold `#B48A4A`; `Completed` uses sage `#8FA990` and remains for five minutes.
 - Task elapsed duration starts when Quota Rings first observes a run, freezes on completion, and resets when Quota Rings restarts. Click a task to try its Codex thread; if the thread link is unsupported or fails, Codex is activated in the foreground.
 - Remaining quota colors: sage above 50%, warm gold at 20–50%, and terracotta below 20%.

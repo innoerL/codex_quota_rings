@@ -56,7 +56,9 @@ final class LargeQuotaView: QuotaView {
                 let value = showUsed ? item.1?.clampedUsedPercent : item.1?.remainingPercent
                 label(value.map { "\(Int($0.rounded()))%" } ?? "—", x: 212, y: y, size: 13, weight: .semibold, color: stale ? .tertiaryLabelColor : .labelColor)
                 label(item.1?.resetDescription() ?? "重置时间暂不可用", x: 16, y: y + 23, size: 10.5, color: .secondaryLabelColor)
-                label(forecastText(item.2), x: 16, y: y + 41, size: 10, color: .tertiaryLabelColor)
+                if index == 0 {
+                    label(forecastText(item.2), x: 16, y: y + 41, size: 10.5, weight: .medium, color: .secondaryLabelColor)
+                }
             }
             QuotaTrendRenderer.draw(series: .make(samples: historySamples), retention: historyRetention,
                                     in: NSRect(x: 16, y: 322, width: 248, height: 96))

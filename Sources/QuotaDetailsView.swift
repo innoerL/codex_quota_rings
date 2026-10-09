@@ -49,7 +49,7 @@ final class QuotaDetailsView: NSView {
             let value = label("—", frame: NSRect(x: 147, y: top-1, width: 83, height: 19), font: .monospacedDigitSystemFont(ofSize: 13, weight: .semibold), color: .labelColor)
             value.alignment = .right; values.append(value)
             resets.append(label("", frame: NSRect(x: 16, y: top+22, width: 214, height: 15), font: .systemFont(ofSize: 9.5), color: .secondaryLabelColor))
-            forecastLabels.append(label("", frame: NSRect(x: 16, y: top+40, width: 214, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor))
+            forecastLabels.append(label("", frame: NSRect(x: 16, y: top+40, width: 214, height: 14), font: .systemFont(ofSize: 9.5, weight: .medium), color: .secondaryLabelColor))
         }
         trend.frame = NSRect(x: 16, y: 148, width: 214, height: 96)
         trend.autoresizingMask = [.width]
@@ -78,7 +78,7 @@ final class QuotaDetailsView: NSView {
             values[index].stringValue = value.map { "\(Int($0.rounded()))%" } ?? "—"
             values[index].textColor = outdated ? .tertiaryLabelColor : .labelColor
             resets[index].stringValue = quota?.resetDescription() ?? "重置时间暂不可用"
-            forecastLabels[index].stringValue = forecastText(index == 0 ? forecasts.fiveHour : forecasts.week)
+            forecastLabels[index].stringValue = index == 0 ? forecastText(forecasts.fiveHour) : ""
         }
         switch connectionState {
         case .codexNotInstalled: updated.stringValue = "未找到 Codex"
