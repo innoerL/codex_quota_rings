@@ -272,8 +272,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if detailsPanel?.isVisible == true { resizeDetailsPanel() }
     }
     private func applyTaskVisibility() {
-        let frontmostID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let rows = WidgetVisibility.shouldShowTaskRows(frontmostBundleID: frontmostID) ? receivedTaskStatuses : []
+        let rows = WidgetVisibility.shouldShowTaskRows() ? receivedTaskStatuses : []
         guard largeView.taskStatuses != rows || details.taskStatuses != rows else { return }
         view.taskStatuses = rows
         largeView.taskStatuses = rows
