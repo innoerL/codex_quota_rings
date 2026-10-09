@@ -20,8 +20,6 @@ import Foundation
                 }
             }
         }
-        precondition(WidgetVisibility.shouldShowTaskRows(),
-                     "FAIL: task rows must remain visible while Codex is focused, otherwise the default display scope makes them unreachable")
         print("PASS: \(count) display-scope combinations")
     }
 }

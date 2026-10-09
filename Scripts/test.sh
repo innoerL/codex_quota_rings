@@ -16,15 +16,7 @@ compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Tests/QuotaHistoryTe
 "$quota_test_dir/history"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/QuotaTrend.swift Tests/QuotaTrendTests.swift -o "$quota_test_dir/trend"
 "$quota_test_dir/trend"
-compile Sources/TaskStatus.swift Tests/TaskStatusTests.swift -o "$quota_test_dir/task-status"
-"$quota_test_dir/task-status"
-compile Sources/CodexSessionActivity.swift Tests/CodexSessionActivityTests.swift -o "$quota_test_dir/session-activity"
-"$quota_test_dir/session-activity"
-compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/QuotaForecast.swift Sources/WidgetPreferences.swift Sources/QuotaConnectionState.swift Sources/TaskStatus.swift Sources/QuotaView.swift Sources/TaskRowView.swift Tests/TaskRowTests.swift -o "$quota_test_dir/task-row"
-"$quota_test_dir/task-row"
-compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexNavigator.swift Tests/CodexNavigatorTests.swift -o "$quota_test_dir/navigator"
-"$quota_test_dir/navigator"
-compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/TaskStatus.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexLocator.swift Sources/QuotaConnectionState.swift Sources/CodexSessionActivity.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
+compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexLocator.swift Sources/QuotaConnectionState.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
 "$quota_test_dir/protocol" "$PWD/Tests/fake-codex.py" "$PWD/Tests/fake-codex-no-auth.py"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexLocator.swift Tests/CodexLocatorTests.swift -o "$quota_test_dir/locator"
 "$quota_test_dir/locator"
@@ -34,12 +26,13 @@ compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPrefer
 "$quota_test_dir/visibility"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPreferences.swift Sources/WidgetMenu.swift Tests/MenuTests.swift -o "$quota_test_dir/menu"
 "$quota_test_dir/menu"
-quota_view_sources=(Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/QuotaTrend.swift Sources/QuotaConnectionState.swift Sources/QuotaForecast.swift Sources/TaskStatus.swift Sources/TaskRowView.swift Sources/WidgetPreferences.swift Sources/QuotaView.swift Sources/QuotaDetailsView.swift Sources/LargeQuotaView.swift)
+quota_view_sources=(Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/QuotaTrend.swift Sources/QuotaConnectionState.swift Sources/QuotaForecast.swift Sources/WidgetPreferences.swift Sources/QuotaView.swift Sources/QuotaDetailsView.swift Sources/LargeQuotaView.swift)
 compile "${quota_view_sources[@]}" Tests/AppearanceCheck.swift -o "$quota_test_dir/appearance"
 "$quota_test_dir/appearance" "$PWD/build/detail-preview.png"
 compile "${quota_view_sources[@]}" Tests/LayoutTests.swift -o "$quota_test_dir/layout"
 "$quota_test_dir/layout" "$PWD/build/layout-preview.png"
 zsh Tests/BuildScriptCheck.sh
+zsh Tests/TaskFeatureRemovalCheck.sh
 compile -D QUOTA_TEST Sources/*.swift Tests/ControllerTests.swift -o "$quota_test_dir/controller"
 "$quota_test_dir/controller" "$PWD/Tests/fake-codex.py" | tee "$quota_test_dir/controller-result"
 # AppKit can exit early in a headless or restricted session; exit 0 alone is insufficient.

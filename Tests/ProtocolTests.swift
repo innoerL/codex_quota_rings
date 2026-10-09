@@ -12,10 +12,6 @@ private final class CountingLocator: CodexLocating {
     }
 }
 
-private struct EmptySessionActivity: CodexSessionActivityProviding {
-    func activeThreadIDs(at now: Date) -> Set<String> { [] }
-}
-
 @main struct ProtocolTests {
     private static var normalClient: QuotaClient!
     private static var authClient: QuotaClient!
@@ -27,18 +23,6 @@ private struct EmptySessionActivity: CodexSessionActivityProviding {
             fputs("FAIL: expected normal and signed-out fixtures\n", stderr)
             exit(1)
         }
-        let malformed: [String: Any] = ["data": [
-            ["id": "valid", "name": "仍在运行", "status": ["type": "active"]],
-            ["id": "broken", "name": "损坏行"]
-        ]]
-        precondition(QuotaClient.activeThreads(from: malformed) == nil,
-                     "one malformed row must reject the whole poll instead of completing an active task")
-        let locallyActive: [String: Any] = ["data": [
-            ["id": "current", "name": "真实当前任务", "status": ["type": "notLoaded"]],
-            ["id": "old", "name": "历史任务", "status": ["type": "notLoaded"]]
-        ]]
-        precondition(QuotaClient.activeThreads(from: locallyActive, sessionActiveIDs: ["current"])?.map(\.title) == ["真实当前任务"],
-                     "a locally active Codex session must recover its real title from a notLoaded thread")
         startNormalFixture(URL(fileURLWithPath: CommandLine.arguments[1]))
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
             fputs("FAIL: protocol test timed out\n", stderr)
@@ -48,25 +32,16 @@ private struct EmptySessionActivity: CodexSessionActivityProviding {
     }
 
     private static func startNormalFixture(_ executable: URL) {
-        normalClient = QuotaClient(executableURL: executable, sessionActivity: EmptySessionActivity())
+        normalClient = QuotaClient(executableURL: executable)
         var readings: [Int] = []
-        var taskTitles: [String] = []
         normalClient.onConnectionState = { normalStates.append($0) }
-        normalClient.onTasksChange = { tasks in
-            taskTitles = tasks.map(\.title)
-            guard taskTitles == ["迁移目录编写", "新增礼物赠送记录表"],
-                  tasks.allSatisfy({ $0.state == .running }) else {
-                fail("active thread decoding or idle filtering failed: \(tasks)")
-            }
-        }
         normalClient.onChange = { snapshot, error in
             if let error {
                 guard readings == [20, 25, 26], snapshot?.fiveHour?.remainingPercent == 26,
-                      taskTitles == ["迁移目录编写", "新增礼物赠送记录表"],
                       normalStates.first == .locating,
                       normalStates.contains(.ready),
                       normalStates.contains(where: { if case .disconnected = $0 { return true }; return false }) else {
-                    fail("protocol, tasks, structured states, or stale-value handling: \(readings); \(taskTitles); \(normalStates); \(error)")
+                    fail("protocol, structured states, or stale-value handling: \(readings); \(normalStates); \(error)")
                 }
                 normalClient.stop()
                 startAuthenticationFixture(URL(fileURLWithPath: CommandLine.arguments[2]))
@@ -81,7 +56,7 @@ private struct EmptySessionActivity: CodexSessionActivityProviding {
     }
 
     private static func startAuthenticationFixture(_ executable: URL) {
-        authClient = QuotaClient(executableURL: executable, sessionActivity: EmptySessionActivity())
+        authClient = QuotaClient(executableURL: executable)
         authClient.onConnectionState = { state in
             guard state == .authenticationRequired else { return }
             authClient.stop()
@@ -100,7 +75,7 @@ private struct EmptySessionActivity: CodexSessionActivityProviding {
             } else {
                 guard locator.calls == 2 else { fail("reconnect must ask the locator again: \(locator.calls)") }
                 missingClient.stop()
-                print("PASS: fragmented JSON, quota polling, tasks, structured connection states, and rediscovery")
+                print("PASS: fragmented JSON, quota polling, structured connection states, and rediscovery")
                 exit(0)
             }
         }

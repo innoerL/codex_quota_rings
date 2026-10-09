@@ -4,24 +4,19 @@ import AppKit
 final class QuotaDetailsView: NSView {
     static let preferredSize = NSSize(width: 246, height: 284)
     private var guidanceHeight: CGFloat { guidanceTitle == nil ? 0 : 38 }
-    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + guidanceHeight + CGFloat(taskStatuses.count) * 30) }
+    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + guidanceHeight) }
     var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
     var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
-    var taskStatuses: [WidgetTaskStatus] = [] { didSet { rebuildTaskRows() } }
     var connectionError: String? { didSet { updateLabels() } }
-    var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance(); rebuildTaskRows() } }
-    var canOpenCodex = false { didSet { rebuildGuidance(); rebuildTaskRows() } }
+    var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance() } }
     var historySamples: [QuotaHistorySample] = [] { didSet { trend.samples = historySamples } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { trend.retention = historyRetention } }
     var onInstallCodex: (() -> Void)?
-    var onOpenCodex: (() -> Void)?
-    var onTaskClick: ((String) -> Void)?
     var showUsed = false { didSet { updateLabels() } }
     private let material = NSVisualEffectView()
     private var values: [NSTextField] = []
     private var resets: [NSTextField] = []
     private var forecastLabels: [NSTextField] = []
-    private var taskRows: [TaskRowView] = []
     private var updated: NSTextField!
     private var automatic: NSTextField!
     private let trend = QuotaTrendView()
@@ -96,6 +91,7 @@ final class QuotaDetailsView: NSView {
         guard connectionError == nil, snapshot?.isStale() != true else { return "收集中，稍后预测" }
         switch forecast {
         case .collecting: return "收集中，稍后预测"
+        case .unstable: return "消耗速率不稳定，暂不预测"
         case .withinCurrentWindow: return "本周期内不会用尽"
         case .depletedAt(let date):
             let format = DateFormatter()
@@ -103,35 +99,20 @@ final class QuotaDetailsView: NSView {
             return format.string(from: date)
         }
     }
-    private func rebuildTaskRows() {
-        taskRows.forEach { $0.removeFromSuperview() }
-        taskRows.removeAll()
-        for (index, task) in taskStatuses.enumerated() {
-            let y = Self.preferredSize.height + guidanceHeight + CGFloat(index) * 30
-            let row = TaskRowView(status: task, frame: NSRect(x: 10, y: y, width: 226, height: 28))
-            row.onClick = { [weak self] id in self?.onTaskClick?(id) }
-            addSubview(row); taskRows.append(row)
-        }
-    }
-    func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
     private var guidanceTitle: String? {
         switch connectionState {
         case .codexNotInstalled: return "安装 Codex"
-        case .authenticationRequired where canOpenCodex,
-             .disconnected where canOpenCodex: return "打开 Codex"
         default: return nil
         }
     }
     private func rebuildGuidance() {
         guidanceButton?.removeFromSuperview(); guidanceButton = nil
         guard let title = guidanceTitle else { return }
-        let button = NSButton(title: title, target: self,
-                              action: title == "安装 Codex" ? #selector(installCodex) : #selector(openCodex))
+        let button = NSButton(title: title, target: self, action: #selector(installCodex))
         button.bezelStyle = .rounded
         button.controlSize = .small
         button.frame = NSRect(x: 16, y: Self.preferredSize.height + 4, width: 104, height: 28)
         addSubview(button); guidanceButton = button
     }
     @objc private func installCodex() { onInstallCodex?() }
-    @objc private func openCodex() { onOpenCodex?() }
 }

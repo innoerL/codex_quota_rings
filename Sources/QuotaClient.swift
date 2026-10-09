@@ -3,7 +3,6 @@ import Foundation
 /// Owns one read-only app-server session. All mutable state lives on the main queue.
 final class QuotaClient {
     var onChange: ((QuotaSnapshot?, String?) -> Void)?
-    var onTasksChange: (([WidgetTaskStatus]) -> Void)?
     var onConnectionState: ((QuotaConnectionState) -> Void)?
     private(set) var codexApplicationURL: URL?
     private var process: Process?
@@ -13,23 +12,17 @@ final class QuotaClient {
     private var generation = UUID()
     private var initialized = false
     private var pendingID: Int?
-    private var pendingTaskID: Int?
     private var nextID = 1
     private var pollTimer: Timer?
-    private var taskPollTimer: Timer?
     private var retryTimer: Timer?
     private var stopped = true
     private var snapshot: QuotaSnapshot?
-    private let taskStatusStore = TaskStatusStore()
     private let executableURL: URL?
     private let locator: CodexLocating
-    private let sessionActivity: CodexSessionActivityProviding
 
-    init(executableURL: URL? = nil, locator: CodexLocating = CodexLocator(),
-         sessionActivity: CodexSessionActivityProviding = CodexSessionActivity()) {
+    init(executableURL: URL? = nil, locator: CodexLocating = CodexLocator()) {
         self.executableURL = executableURL
         self.locator = locator
-        self.sessionActivity = sessionActivity
     }
 
     func start() {
@@ -37,15 +30,10 @@ final class QuotaClient {
         stopped = false
         connect()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
-        taskPollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            self?.expireTaskStatuses()
-            self?.refreshTasks()
-        }
     }
     func stop() {
         stopped = true
         pollTimer?.invalidate(); pollTimer = nil
-        taskPollTimer?.invalidate(); taskPollTimer = nil
         retryTimer?.invalidate(); retryTimer = nil
         disconnect()
     }
@@ -65,21 +53,6 @@ final class QuotaClient {
             guard let self, self.generation == token, self.pendingID == id else { return }
             self.fail("额度请求超时，将自动重连")
         }
-    }
-    private func refreshTasks() {
-        guard !stopped, let process, process.isRunning, initialized, pendingTaskID == nil else { return }
-        nextID += 1
-        let id = nextID
-        pendingTaskID = id
-        send(["id": id, "method": "thread/list", "params": [:]])
-        let token = generation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
-            guard let self, self.generation == token, self.pendingTaskID == id else { return }
-            self.pendingTaskID = nil
-        }
-    }
-    private func expireTaskStatuses() {
-        if let statuses = taskStatusStore.expire(at: Date()) { onTasksChange?(statuses) }
     }
     private func connect() {
         guard !stopped, process == nil else { return }
@@ -160,7 +133,6 @@ final class QuotaClient {
                     onConnectionState?(.ready)
                     send(["method": "initialized"])
                     refresh()
-                    refreshTasks()
                 } else if id == pendingID {
                     pendingID = nil
                     guard let result = object["result"] as? [String: Any] else {
@@ -169,9 +141,6 @@ final class QuotaClient {
                         return
                     }
                     accept(result)
-                } else if id == pendingTaskID {
-                    pendingTaskID = nil
-                    if let result = object["result"] as? [String: Any] { acceptTasks(result) }
                 }
             } else if object["method"] as? String == "account/rateLimits/updated",
                       let result = object["params"] as? [String: Any] {
@@ -189,25 +158,6 @@ final class QuotaClient {
             snapshot = try QuotaSnapshot.decode(data)
             onChange?(snapshot, nil)
         } catch { fail("额度数据格式异常，将自动重试") }
-    }
-    private func acceptTasks(_ result: [String: Any]) {
-        guard let active = Self.activeThreads(from: result, sessionActiveIDs: sessionActivity.activeThreadIDs(at: Date())) else { return }
-        onTasksChange?(taskStatusStore.update(active: active, at: Date()))
-    }
-
-    static func activeThreads(from result: [String: Any], sessionActiveIDs: Set<String> = []) -> [ActiveCodexThread]? {
-        guard let rows = result["data"] as? [[String: Any]] else { return nil }
-        var active: [ActiveCodexThread] = []
-        for row in rows {
-            guard let id = row["id"] as? String,
-                  let status = row["status"] as? [String: Any],
-                  let type = status["type"] as? String else { return nil }
-            guard type == "active" || (type == "notLoaded" && sessionActiveIDs.contains(id)) else { continue }
-            let title = (row["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let preview = (row["preview"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            active.append(ActiveCodexThread(id: id, title: title?.isEmpty == false ? title! : (preview?.isEmpty == false ? preview! : "未命名任务")))
-        }
-        return active
     }
     private func fail(_ message: String) {
         guard !stopped else { return }
@@ -242,7 +192,7 @@ final class QuotaClient {
     }
     private func disconnect() {
         generation = UUID()
-        initialized = false; pendingID = nil; pendingTaskID = nil; nextID = 1
+        initialized = false; pendingID = nil; nextID = 1
         output?.readabilityHandler = nil
         process?.terminationHandler = nil
         try? input?.close()

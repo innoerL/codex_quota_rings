@@ -11,31 +11,15 @@ extension QuotaLevel {
     }
 }
 
-enum TaskStatusPalette {
-    static let runningColor = NSColor(calibratedRed: 180 / 255, green: 138 / 255, blue: 74 / 255, alpha: 1)
-    static let completedColor = NSColor(calibratedRed: 143 / 255, green: 169 / 255, blue: 144 / 255, alpha: 1)
-
-    static func color(for state: WidgetTaskState) -> NSColor {
-        state == .running ? runningColor : completedColor
-    }
-}
-
 class QuotaView: NSView {
     static let preferredSize = NSSize(width: 42, height: 124)
     var smallLayout: SmallLayout = .vertical { didSet { needsDisplay = true } }
     private var baseContentSize: NSSize {
         smallLayout == .vertical ? Self.preferredSize : NSSize(width: 104, height: 68)
     }
-    private var taskSectionHeight: CGFloat { taskStatuses.isEmpty ? 0 : 8 + CGFloat(taskStatuses.count) * 30 }
-    var preferredContentSize: NSSize {
-        let base = baseContentSize
-        guard !taskStatuses.isEmpty else { return base }
-        return NSSize(width: max(172, base.width), height: base.height + taskSectionHeight)
-    }
+    var preferredContentSize: NSSize { baseContentSize }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
     var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
-    var taskStatuses: [WidgetTaskStatus] = [] { didSet { needsDisplay = true; updateTooltip(); rebuildTaskRows(); taskStatusesDidChange() } }
-    func taskStatusesDidChange() {}
     var connectionError: String? { didSet { needsDisplay = true; updateTooltip() } }
     var connectionState: QuotaConnectionState = .locating { didSet { needsDisplay = true; updateTooltip(); connectionStateDidChange() } }
     func connectionStateDidChange() {}
@@ -43,8 +27,6 @@ class QuotaView: NSView {
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
     var onDrag: (() -> Void)?
-    var onTaskClick: ((String) -> Void)?
-    private var taskRows: [TaskRowView] = []
     private var dragStart: NSPoint?
     private var windowStart: NSPoint?
     private var dragged = false
@@ -124,9 +106,9 @@ class QuotaView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         // A quiet sidebar control at rest, with a subtle macOS-style hover surface.
-        if hovered || isExpanded || !taskStatuses.isEmpty {
+        if hovered || isExpanded {
             let surface = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 6), xRadius: 13, yRadius: 13)
-            NSColor.white.withAlphaComponent(isExpanded || !taskStatuses.isEmpty ? 0.075 : 0.045).setFill(); surface.fill()
+            NSColor.white.withAlphaComponent(isExpanded ? 0.075 : 0.045).setFill(); surface.fill()
             NSColor.white.withAlphaComponent(0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26, y: 30), title: "5 小时")
@@ -136,19 +118,6 @@ class QuotaView: NSView {
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()
         }
     }
-    func rebuildTaskRows() {
-        taskRows.forEach { $0.removeFromSuperview() }
-        taskRows.removeAll()
-        let startY = baseContentSize.height + 4
-        for (index, task) in taskStatuses.enumerated() {
-            let row = TaskRowView(status: task,
-                                  frame: NSRect(x: 4, y: startY + CGFloat(index) * 30,
-                                                width: max(20, preferredContentSize.width - 8), height: 28))
-            row.onClick = { [weak self] id in self?.onTaskClick?(id) }
-            addSubview(row); taskRows.append(row)
-        }
-    }
-    func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
     func updateTooltip() {
         var lines = ["Codex \(showUsed ? "已用" : "剩余")额度 · 每30秒刷新", "点击查看详情 · 拖动移动 · 右键菜单"]
         if let snapshot {
@@ -157,7 +126,7 @@ class QuotaView: NSView {
         }
         switch connectionState {
         case .codexNotInstalled: lines.append("未找到 Codex · 打开详情可安装")
-        case .authenticationRequired: lines.append("请先在 Codex 中登录 · 打开详情可启动 Codex")
+        case .authenticationRequired: lines.append("请先在 Codex 中登录")
         case .disconnected(let message): lines.append(message)
         case .locating: if snapshot == nil { lines.append("正在查找 Codex…") }
         case .ready: if let connectionError { lines.append(connectionError) }
@@ -176,6 +145,8 @@ class QuotaView: NSView {
         switch forecast {
         case .collecting:
             return "收集中，稍后预测"
+        case .unstable:
+            return "消耗速率不稳定，暂不预测"
         case .withinCurrentWindow:
             return "本周期内不会用尽"
         case .depletedAt(let date):

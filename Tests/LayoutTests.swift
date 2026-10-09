@@ -14,15 +14,6 @@ import AppKit
         let large = LargeQuotaView(frame: NSRect(origin: .zero, size: LargeQuotaView.collapsedSize))
         large.snapshot = sample
         let forecasts = QuotaForecasts(fiveHour: .depletedAt(now.addingTimeInterval(3_600)), week: .withinCurrentWindow)
-        let tasks = [
-            WidgetTaskStatus(id: "first", title: "迁移目录编写", state: .running),
-            WidgetTaskStatus(id: "second", title: "新增礼物赠送记录表", state: .completed)
-        ]
-        compact.taskStatuses = tasks
-        precondition(compact.preferredContentSize.width >= 160 && compact.preferredContentSize.height > QuotaView.preferredSize.height,
-                     "compact rings must expand into a readable task card when tasks are active")
-        precondition(compact.subviews.compactMap { $0 as? TaskRowView }.count == tasks.count,
-                     "compact rings must display every active task title and status")
         large.forecasts = forecasts
         let staleCompact = QuotaView(frame: .zero)
         staleCompact.snapshot = QuotaSnapshot(fiveHour: sample.fiveHour, week: sample.week, fetchedAt: now.addingTimeInterval(-91))
@@ -33,31 +24,19 @@ import AppKit
         large.onClick = { large.isExpanded.toggle(); clicks += 1 }
         precondition(large.accessibilityPerformPress())
         precondition(clicks == 1 && large.preferredContentSize.height > LargeQuotaView.collapsedSize.height)
-        let expandedWithoutTasks = large.preferredContentSize.height
+        let expandedHeight = large.preferredContentSize.height
         large.historySamples = [QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)]
         large.historyRetention = .session30Minutes
-        precondition(large.preferredContentSize.height == expandedWithoutTasks,
+        precondition(large.preferredContentSize.height == expandedHeight,
                      "expanded large card must reserve chart space before samples arrive")
-        large.taskStatuses = tasks
-        precondition(large.preferredContentSize.height > expandedWithoutTasks,
-                     "large detail card must add one visible row for each background task")
         precondition(large.accessibilityPerformPress())
-        precondition(clicks == 2 && large.preferredContentSize.height > LargeQuotaView.collapsedSize.height
-                     && large.preferredContentSize.height < expandedWithoutTasks,
-                     "collapsed large card must retain task rows while remaining shorter than details")
-        precondition(large.subviews.compactMap { $0 as? TaskRowView }.count == tasks.count,
-                     "large details must use reusable task rows")
+        precondition(clicks == 2 && large.preferredContentSize.height == LargeQuotaView.collapsedSize.height,
+                     "collapsed large card must return to its fixed compact height")
         large.isExpanded = true
-        precondition(large.subviews.compactMap { $0 as? TaskRowView }.allSatisfy { $0.frame.minY < 322 },
-                     "expanded large card must place task rows above the trend chart")
         large.connectionState = .codexNotInstalled
         precondition(large.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["安装 Codex"])
-        large.canOpenCodex = false
         large.connectionState = .authenticationRequired
         precondition(large.subviews.compactMap { $0 as? NSButton }.isEmpty)
-        large.canOpenCodex = true
-        large.connectionState = .authenticationRequired
-        precondition(large.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["打开 Codex"])
         large.connectionState = .ready
         precondition(large.subviews.compactMap { $0 as? NSButton }.isEmpty)
         large.isExpanded = false
@@ -67,14 +46,13 @@ import AppKit
         for (index, orientation) in SmallLayout.allCases.enumerated() {
             let view = QuotaView(frame: .zero)
             view.smallLayout = orientation; view.snapshot = sample
-            if orientation == .vertical { view.taskStatuses = tasks }
             view.frame = NSRect(origin: NSPoint(x: 25 + index * 90, y: 20), size: view.preferredContentSize)
             root.addSubview(view)
         }
         large.frame = NSRect(origin: NSPoint(x: 20, y: 380), size: large.preferredContentSize)
         root.addSubview(large)
         let expanded = LargeQuotaView(frame: .zero)
-        expanded.isExpanded = true; expanded.snapshot = sample; expanded.forecasts = forecasts; expanded.taskStatuses = tasks
+        expanded.isExpanded = true; expanded.snapshot = sample; expanded.forecasts = forecasts
         expanded.frame = NSRect(origin: NSPoint(x: 320, y: 60), size: expanded.preferredContentSize)
         root.addSubview(expanded)
         let detail = QuotaDetailsView(frame: .zero)
@@ -87,7 +65,6 @@ import AppKit
         precondition(!detail.subviews.compactMap { $0 as? NSTextField }
             .contains(where: { $0.stringValue == "本周期内不会用尽" }),
                      "weekly quota must not claim a depletion forecast")
-        let detailWithoutTasks = detail.preferredContentSize.height
         detail.historySamples = []
         let emptyHistoryHeight = detail.preferredContentSize.height
         detail.historySamples = [QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)]
@@ -95,24 +72,15 @@ import AppKit
                      "compact detail card must reserve chart space for empty and sparse history")
         detail.connectionState = .codexNotInstalled
         precondition(detail.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["安装 Codex"])
-        detail.canOpenCodex = false
         detail.connectionState = .authenticationRequired
         precondition(detail.subviews.compactMap { $0 as? NSButton }.isEmpty)
-        detail.canOpenCodex = true
-        detail.connectionState = .authenticationRequired
-        precondition(detail.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["打开 Codex"])
         detail.connectionState = .ready
         precondition(detail.subviews.compactMap { $0 as? NSButton }.isEmpty)
-        detail.taskStatuses = tasks
-        precondition(detail.subviews.compactMap { $0 as? TaskRowView }.count == tasks.count,
-                     "compact details must use reusable task rows")
-        precondition(detail.preferredContentSize.height > detailWithoutTasks,
-                     "compact detail card must grow for background task rows")
         let bitmap = root.bitmapImageRepForCachingDisplay(in: root.bounds)!
         root.cacheDisplay(in: root.bounds, to: bitmap)
         if CommandLine.arguments.count > 1 {
             try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
         }
-        print("PASS: all layouts, reserved trends, recovery guidance, task expansion and sample rendering")
+        print("PASS: all layouts, reserved trends, recovery guidance, and sample rendering")
     }
 }

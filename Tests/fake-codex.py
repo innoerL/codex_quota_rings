@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Protocol fixture: fragmented quota JSON, active threads, update, disconnect."""
+"""Protocol fixture: fragmented quota JSON, update, and disconnect."""
 import json
 import sys
 import time
@@ -25,14 +25,6 @@ for line in sys.stdin:
         emit({'id': message['id'], 'result': {}})
     elif method == 'initialized':
         initialized = True
-    elif method == 'thread/list':
-        assert initialized
-        assert message['params'] == {}
-        emit({'id': message['id'], 'result': {'data': [
-            {'id': 'first', 'name': '迁移目录编写', 'preview': '迁移目录编写', 'status': {'type': 'active'}},
-            {'id': 'second', 'name': '新增礼物赠送记录表', 'preview': '新增礼物赠送记录表', 'status': {'type': 'active'}},
-            {'id': 'old', 'name': '历史任务', 'preview': '历史任务', 'status': {'type': 'idle'}},
-        ]}})
     elif method == 'account/rateLimits/read':
         assert initialized
         quota_reads += 1

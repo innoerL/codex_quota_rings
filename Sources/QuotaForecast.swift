@@ -2,6 +2,7 @@ import Foundation
 
 enum QuotaForecast: Equatable {
     case collecting
+    case unstable
     case withinCurrentWindow
     case depletedAt(Date)
 }
@@ -55,22 +56,49 @@ struct QuotaForecastEngine {
     }
 
     private static func forecast(at date: Date, resetAt: TimeInterval, remainingPercent: Double, samples: [Sample]) -> QuotaForecast {
-        guard samples.count >= 4,
+        guard samples.count >= 6,
               let first = samples.first,
-              date.timeIntervalSince(first.date) >= 120 else { return .collecting }
+              date.timeIntervalSince(first.date) >= 10 * 60 else { return .collecting }
 
-        let hourlyRates = zip(samples, samples.dropFirst()).compactMap { earlier, later -> Double? in
-            let seconds = later.date.timeIntervalSince(earlier.date)
-            let increase = later.usedPercent - earlier.usedPercent
-            guard seconds > 0, increase > 0 else { return nil }
-            return increase / seconds * 3_600
-        }.sorted()
-        guard !hourlyRates.isEmpty else { return .collecting }
-        let median = hourlyRates[hourlyRates.count / 2]
-        guard median >= 0.1 else { return .collecting }
+        let recentCutoff = date.addingTimeInterval(-10 * 60)
+        let recentSamples = samples.filter { $0.date >= recentCutoff }
+        guard recentSamples.count >= 4,
+              let recentFirst = recentSamples.first,
+              date.timeIntervalSince(recentFirst.date) >= 5 * 60,
+              let longRate = robustHourlyRate(for: samples),
+              let recentRate = robustHourlyRate(for: recentSamples),
+              let recentEndToEndRate = endToEndHourlyRate(for: recentSamples) else { return .collecting }
 
-        let secondsUntilDepletion = remainingPercent / median * 3_600
+        guard recentRate >= 0.1, recentEndToEndRate >= 0.1 else { return .collecting }
+        guard ratesAgree(longRate, recentRate), ratesAgree(recentRate, recentEndToEndRate) else { return .unstable }
+
+        let secondsUntilDepletion = remainingPercent / recentEndToEndRate * 3_600
         let depletionDate = date.addingTimeInterval(secondsUntilDepletion)
         return depletionDate.timeIntervalSince1970 >= resetAt ? .withinCurrentWindow : .depletedAt(depletionDate)
+    }
+
+    private static func robustHourlyRate(for samples: [Sample]) -> Double? {
+        let rates = samples.indices.flatMap { start in
+            samples.indices.dropFirst(start + 1).compactMap { end -> Double? in
+                let seconds = samples[end].date.timeIntervalSince(samples[start].date)
+                let increase = samples[end].usedPercent - samples[start].usedPercent
+                guard seconds > 0, increase >= 0 else { return nil }
+                return increase / seconds * 3_600
+            }
+        }.sorted()
+        guard !rates.isEmpty else { return nil }
+        return rates[rates.count / 2]
+    }
+
+    private static func endToEndHourlyRate(for samples: [Sample]) -> Double? {
+        guard let first = samples.first, let last = samples.last else { return nil }
+        let seconds = last.date.timeIntervalSince(first.date)
+        let increase = last.usedPercent - first.usedPercent
+        guard seconds > 0, increase >= 0 else { return nil }
+        return increase / seconds * 3_600
+    }
+
+    private static func ratesAgree(_ first: Double, _ second: Double) -> Bool {
+        abs(first - second) / max(first, second, 0.1) <= 0.35
     }
 }

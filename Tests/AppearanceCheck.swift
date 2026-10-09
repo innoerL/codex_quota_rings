@@ -14,10 +14,6 @@ final class PreviewSurface: NSView {
         _ = NSApplication.shared
         let now = Date()
         let snapshot = QuotaSnapshot(fiveHour: QuotaWindow(usedPercent: 32, windowDurationMins: 300, resetsAt: now.timeIntervalSince1970 + 8760), week: QuotaWindow(usedPercent: 53, windowDurationMins: 10080, resetsAt: now.timeIntervalSince1970 + 295200), fetchedAt: now)
-        precondition(TaskStatusPalette.runningColor == NSColor(calibratedRed: 180 / 255, green: 138 / 255, blue: 74 / 255, alpha: 1),
-                     "FAIL: Running must use #B48A4A")
-        precondition(TaskStatusPalette.completedColor == NSColor(calibratedRed: 143 / 255, green: 169 / 255, blue: 144 / 255, alpha: 1),
-                     "FAIL: Completed must use #8FA990")
         let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 370))
         let compact = QuotaView(frame: NSRect(origin: NSPoint(x: 5, y: 44), size: QuotaView.preferredSize))
         compact.snapshot = snapshot
@@ -27,10 +23,6 @@ final class PreviewSurface: NSView {
         card.historySamples = [
             QuotaHistorySample(timestamp: now.addingTimeInterval(-600), fiveHourUsedPercent: 20, weekUsedPercent: 45),
             QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)
-        ]
-        card.taskStatuses = [
-            WidgetTaskStatus(id: "running", title: "迁移目录编写", state: .running),
-            WidgetTaskStatus(id: "completed", title: "新增礼物赠送记录表", state: .completed)
         ]
         card.frame.size = card.preferredContentSize
         root.addSubview(compact); root.addSubview(card)
@@ -49,6 +41,6 @@ final class PreviewSurface: NSView {
             fputs("FAIL: transparent widget erased the sidebar background\n", stderr); exit(1)
         }
         try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
-        print("PASS: compact click, task palette, no refresh button, transparent compositing and native appearance render")
+        print("PASS: compact click, no refresh button, transparent compositing and native appearance render")
     }
 }

@@ -9,9 +9,4 @@ enum WidgetVisibility {
         case .focusDesktop: return frontmostBundleID == "com.apple.finder" && isDesktopVisible
         }
     }
-    static func shouldShowTaskRows() -> Bool {
-        // The default widget scope is `.focusCodex`; hiding task rows there
-        // made active tasks impossible to see without changing preferences.
-        true
-    }
 }

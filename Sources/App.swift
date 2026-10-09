@@ -5,9 +5,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let client: QuotaClient
     private let defaults: UserDefaults
     private let historyStore: QuotaHistoryStore
-    private let navigator: CodexNavigating
     private var forecastEngine = QuotaForecastEngine()
-    private var receivedTaskStatuses: [WidgetTaskStatus] = []
     private var connectionState: QuotaConnectionState = .locating
     private let view = QuotaView(frame: NSRect(origin: .zero, size: QuotaView.preferredSize))
     private let largeView = LargeQuotaView(frame: NSRect(origin: .zero, size: LargeQuotaView.collapsedSize))
@@ -25,8 +23,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var freshnessTimer: Timer?
     private var visibilityTimer: Timer?
 
-    init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(),
-         historyFileURL: URL? = nil, navigator: CodexNavigating? = nil) {
+    init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
         self.defaults = defaults; self.client = client
         let loaded = WidgetPreferences.load(from: defaults)
         self.preferences = loaded
@@ -35,7 +32,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .appendingPathComponent("quota-history.json")
         self.historyStore = QuotaHistoryStore(retention: loaded.historyRetention,
                                               fileURL: historyFileURL ?? defaultHistoryURL)
-        self.navigator = navigator ?? CodexNavigator(codexApplicationURL: { [weak client] in client?.codexApplicationURL })
         super.init()
     }
 
@@ -75,12 +71,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         largeView.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         largeView.onClick = { [weak self] in self?.toggleDetails() }
         largeView.onInstallCodex = { [weak self] in self?.installCodex() }
-        largeView.onOpenCodex = { [weak self] in self?.openCodex() }
         details.onInstallCodex = { [weak self] in self?.installCodex() }
-        details.onOpenCodex = { [weak self] in self?.openCodex() }
-        largeView.onTaskClick = { [weak self] id in self?.openTask(id) }
-        details.onTaskClick = { [weak self] id in self?.openTask(id) }
-        view.onTaskClick = { [weak self] id in self?.openTask(id) }
         largeView.showUsed = view.showUsed
         widgetMenu.onChange = { [weak self] selection in self?.applyPreferences(selection) }
         configureLayout(restorePosition: true)
@@ -91,10 +82,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         client.onChange = { [weak self] snapshot, error in
             self?.applyQuota(snapshot: snapshot, error: error)
         }
-        client.onTasksChange = { [weak self] statuses in
-            self?.receivedTaskStatuses = statuses
-            self?.applyTaskVisibility()
-        }
         client.onConnectionState = { [weak self] state in
             self?.applyConnectionState(state)
         }
@@ -103,8 +90,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.view.needsDisplay = true; self.largeView.needsDisplay = true; self.details.updateLabels()
-            let now = Date()
-            self.view.refreshTaskDurations(at: now); self.largeView.refreshTaskDurations(at: now); self.details.refreshTaskDurations(at: now)
             self.publishHistory()
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
@@ -177,8 +162,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         _ = action("额度详情", #selector(toggleDetails))
         switch connectionState {
         case .codexNotInstalled: _ = action("安装 Codex", #selector(installCodex))
-        case .authenticationRequired where canOpenCodex,
-             .disconnected where canOpenCodex: _ = action("打开 Codex", #selector(openCodex))
         default: break
         }
         let used = action("显示已用百分比", #selector(toggleUsed)); used.state = view.showUsed ? .on : .off
@@ -263,26 +246,11 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func applyConnectionState(_ state: QuotaConnectionState) {
         connectionState = state
-        let canOpen = canOpenCodex
-        largeView.canOpenCodex = canOpen
-        details.canOpenCodex = canOpen
         view.connectionState = state
         largeView.connectionState = state
         details.connectionState = state
         if preferences.size == .large, largeView.isExpanded { configureLayout(restorePosition: false) }
         if detailsPanel?.isVisible == true { resizeDetailsPanel() }
-    }
-    private func applyTaskVisibility() {
-        let rows = WidgetVisibility.shouldShowTaskRows() ? receivedTaskStatuses : []
-        guard largeView.taskStatuses != rows || details.taskStatuses != rows else { return }
-        view.taskStatuses = rows
-        largeView.taskStatuses = rows
-        details.taskStatuses = rows
-        if preferences.size == .large { configureLayout(restorePosition: false) }
-        else {
-            configureLayout(restorePosition: false)
-            if detailsPanel.isVisible { resizeDetailsPanel() }
-        }
     }
     private func resizeDetailsPanel() {
         let size = details.preferredContentSize
@@ -351,7 +319,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                            hasCodexWindow: hasWindow, isDesktopVisible: !ordinaryWindow)
     }
     @objc private func refreshVisibility() {
-        applyTaskVisibility()
         if shouldDisplayNow() {
             if !panel.isVisible { panel.orderFrontRegardless() }
         } else {
@@ -364,22 +331,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func installCodex() {
         guard let url = URL(string: "https://chatgpt.com/download/") else { return }
         NSWorkspace.shared.open(url)
-    }
-    @objc private func openCodex() {
-        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: WidgetVisibility.hostBundleID).first {
-            running.activate(options: [.activateAllWindows])
-        } else if let url = client.codexApplicationURL ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: WidgetVisibility.hostBundleID) {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = true
-            NSWorkspace.shared.openApplication(at: url, configuration: configuration)
-        }
-    }
-    private func openTask(_ id: String) {
-        _ = navigator.openTask(id: id)
-    }
-    private var canOpenCodex: Bool {
-        client.codexApplicationURL != nil || !NSRunningApplication.runningApplications(withBundleIdentifier: WidgetVisibility.hostBundleID).isEmpty
-            || NSWorkspace.shared.urlForApplication(withBundleIdentifier: WidgetVisibility.hostBundleID) != nil
     }
     @objc private func quit() { NSApp.terminate(nil) }
 }

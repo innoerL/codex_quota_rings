@@ -5,21 +5,16 @@ final class LargeQuotaView: QuotaView {
     static let collapsedSize = NSSize(width: 280, height: 174)
     private static let expandedBaseHeight: CGFloat = 456
     private var guidanceHeight: CGFloat { isExpanded && guidanceTitle != nil ? 38 : 0 }
-    private var taskSectionHeight: CGFloat { taskStatuses.isEmpty ? 0 : 8 + CGFloat(taskStatuses.count) * 30 }
     override var preferredContentSize: NSSize {
-        NSSize(width: Self.collapsedSize.width, height: (isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height) + taskSectionHeight)
+        NSSize(width: Self.collapsedSize.width, height: isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height)
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
-    var canOpenCodex = false { didSet { rebuildGuidance(); rebuildTaskRows() } }
     var onInstallCodex: (() -> Void)?
-    var onOpenCodex: (() -> Void)?
     private var guidanceButton: NSButton?
-    private var taskRows: [TaskRowView] = []
 
-    override func expansionDidChange() { rebuildGuidance(); rebuildTaskRows() }
-    override func connectionStateDidChange() { rebuildGuidance(); rebuildTaskRows() }
-    override func taskStatusesDidChange() { rebuildTaskRows() }
+    override func expansionDidChange() { rebuildGuidance() }
+    override func connectionStateDidChange() { rebuildGuidance() }
     override func draw(_ dirtyRect: NSRect) {
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
         NSColor(white: 0.14, alpha: 0.97).setFill(); card.fill()
@@ -59,50 +54,27 @@ final class LargeQuotaView: QuotaView {
                     label(forecastText(item.2), x: 16, y: y + 41, size: 10.5, weight: .medium, color: .secondaryLabelColor)
                 }
             }
-            let taskOffset = taskSectionHeight
             QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
-                                    in: NSRect(x: 16, y: 322 + taskOffset, width: 248, height: 96))
+                                    in: NSRect(x: 16, y: 322, width: 248, height: 96))
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16, y: 432 + taskOffset, size: 10, color: .secondaryLabelColor)
+            label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16, y: 432, size: 10, color: .secondaryLabelColor)
         }
-        drawTaskRows(startY: isExpanded ? 286 : Self.collapsedSize.height)
     }
     private var guidanceTitle: String? {
         switch connectionState {
         case .codexNotInstalled: return "安装 Codex"
-        case .authenticationRequired where canOpenCodex,
-             .disconnected where canOpenCodex: return "打开 Codex"
         default: return nil
         }
     }
     private func rebuildGuidance() {
         guidanceButton?.removeFromSuperview(); guidanceButton = nil
         guard isExpanded, let title = guidanceTitle else { return }
-        let button = NSButton(title: title, target: self,
-                              action: title == "安装 Codex" ? #selector(installCodex) : #selector(openCodex))
+        let button = NSButton(title: title, target: self, action: #selector(installCodex))
         button.bezelStyle = .rounded; button.controlSize = .small
         button.frame = NSRect(x: 16, y: Self.expandedBaseHeight + 4, width: 104, height: 28)
         addSubview(button); guidanceButton = button
     }
-    override func rebuildTaskRows() {
-        taskRows.forEach { $0.removeFromSuperview() }; taskRows.removeAll()
-        let startY = isExpanded ? 286 : Self.collapsedSize.height
-        for (index, task) in taskStatuses.enumerated() {
-            let row = TaskRowView(status: task,
-                                  frame: NSRect(x: 10, y: startY + 4 + CGFloat(index) * 30,
-                                                width: 260, height: 28))
-            row.onClick = { [weak self] id in self?.onTaskClick?(id) }
-            addSubview(row); taskRows.append(row)
-        }
-    }
-    override func refreshTaskDurations(at now: Date = Date()) { taskRows.forEach { $0.now = now } }
     @objc private func installCodex() { onInstallCodex?() }
-    @objc private func openCodex() { onOpenCodex?() }
-    private func drawTaskRows(startY: CGFloat) {
-        guard !taskStatuses.isEmpty else { return }
-        NSColor.white.withAlphaComponent(0.09).setFill()
-        NSRect(x: 1, y: startY, width: bounds.width-2, height: 0.5).fill()
-    }
     private func label(_ value: String, x: CGFloat, y: CGFloat, width: CGFloat? = nil, size: CGFloat, weight: NSFont.Weight = .regular, color: NSColor = .labelColor, alignment: NSTextAlignment = .left) {
         let style = NSMutableParagraphStyle(); style.lineBreakMode = .byTruncatingTail
         style.alignment = alignment
