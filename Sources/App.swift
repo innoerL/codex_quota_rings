@@ -104,6 +104,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.view.needsDisplay = true; self.largeView.needsDisplay = true; self.details.updateLabels()
             let now = Date()
             self.largeView.refreshTaskDurations(at: now); self.details.refreshTaskDurations(at: now)
+            self.publishHistory()
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         let notifications: [Notification.Name] = [NSWorkspace.didActivateApplicationNotification,
@@ -175,7 +176,8 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         _ = action("额度详情", #selector(toggleDetails))
         switch connectionState {
         case .codexNotInstalled: _ = action("安装 Codex", #selector(installCodex))
-        case .authenticationRequired, .disconnected: _ = action("打开 Codex", #selector(openCodex))
+        case .authenticationRequired where canOpenCodex,
+             .disconnected where canOpenCodex: _ = action("打开 Codex", #selector(openCodex))
         default: break
         }
         let used = action("显示已用百分比", #selector(toggleUsed)); used.state = view.showUsed ? .on : .off
@@ -260,6 +262,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func applyConnectionState(_ state: QuotaConnectionState) {
         connectionState = state
+        let canOpen = canOpenCodex
+        largeView.canOpenCodex = canOpen
+        details.canOpenCodex = canOpen
         view.connectionState = state
         largeView.connectionState = state
         details.connectionState = state
@@ -360,7 +365,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func openCodex() {
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: WidgetVisibility.hostBundleID).first {
             running.activate(options: [.activateAllWindows])
-        } else if let url = client.codexApplicationURL {
+        } else if let url = client.codexApplicationURL ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: WidgetVisibility.hostBundleID) {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
             NSWorkspace.shared.openApplication(at: url, configuration: configuration)
@@ -368,6 +373,10 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func openTask(_ id: String) {
         _ = navigator.openTask(id: id)
+    }
+    private var canOpenCodex: Bool {
+        client.codexApplicationURL != nil || !NSRunningApplication.runningApplications(withBundleIdentifier: WidgetVisibility.hostBundleID).isEmpty
+            || NSWorkspace.shared.urlForApplication(withBundleIdentifier: WidgetVisibility.hostBundleID) != nil
     }
     @objc private func quit() { NSApp.terminate(nil) }
 }

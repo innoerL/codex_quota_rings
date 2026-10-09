@@ -66,6 +66,20 @@ private final class CheckedPaths {
         precondition(missing.2.contains(homeCLI))
         precondition(missing.2.contains("/usr/local/bin/codex"))
 
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("quota-locator-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        let directoryCandidate = temporary.appendingPathComponent("codex", isDirectory: true)
+        try! FileManager.default.createDirectory(at: directoryCandidate, withIntermediateDirectories: true)
+        precondition(!CodexLocator.isRunnableExecutable(at: directoryCandidate.path),
+                     "a searchable directory named codex must not be launched")
+        let executable = temporary.appendingPathComponent("real-codex")
+        try! Data("#!/bin/sh\nexit 0\n".utf8).write(to: executable)
+        try! FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        let symlink = temporary.appendingPathComponent("linked-codex")
+        try! FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: executable)
+        precondition(CodexLocator.isRunnableExecutable(at: symlink.path), "valid executable symlinks must remain supported")
+
         print("PASS: zero-configuration Codex discovery and invalid-candidate fallback")
     }
 }

@@ -23,6 +23,12 @@ private final class CountingLocator: CodexLocating {
             fputs("FAIL: expected normal and signed-out fixtures\n", stderr)
             exit(1)
         }
+        let malformed: [String: Any] = ["data": [
+            ["id": "valid", "name": "仍在运行", "status": ["type": "active"]],
+            ["id": "broken", "name": "损坏行"]
+        ]]
+        precondition(QuotaClient.activeThreads(from: malformed) == nil,
+                     "one malformed row must reject the whole poll instead of completing an active task")
         startNormalFixture(URL(fileURLWithPath: CommandLine.arguments[1]))
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
             fputs("FAIL: protocol test timed out\n", stderr)

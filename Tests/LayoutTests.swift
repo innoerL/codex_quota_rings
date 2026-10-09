@@ -45,6 +45,10 @@ import AppKit
         large.isExpanded = true
         large.connectionState = .codexNotInstalled
         precondition(large.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["安装 Codex"])
+        large.canOpenCodex = false
+        large.connectionState = .authenticationRequired
+        precondition(large.subviews.compactMap { $0 as? NSButton }.isEmpty)
+        large.canOpenCodex = true
         large.connectionState = .authenticationRequired
         precondition(large.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["打开 Codex"])
         large.connectionState = .ready
@@ -75,6 +79,10 @@ import AppKit
                      "compact detail card must reserve chart space for empty and sparse history")
         detail.connectionState = .codexNotInstalled
         precondition(detail.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["安装 Codex"])
+        detail.canOpenCodex = false
+        detail.connectionState = .authenticationRequired
+        precondition(detail.subviews.compactMap { $0 as? NSButton }.isEmpty)
+        detail.canOpenCodex = true
         detail.connectionState = .authenticationRequired
         precondition(detail.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["打开 Codex"])
         detail.connectionState = .ready

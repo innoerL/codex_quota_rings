@@ -28,15 +28,18 @@ final class QuotaHistoryStore {
     private var storedSamples: [QuotaHistorySample] = []
     private let fileURL: URL
     private let now: () -> Date
+    private let removeItem: (URL) throws -> Void
 
-    init(retention: HistoryRetention, fileURL: URL, now: @escaping () -> Date = Date.init) {
+    init(retention: HistoryRetention, fileURL: URL, now: @escaping () -> Date = Date.init,
+         removeItem: @escaping (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }) {
         self.retention = retention
         self.fileURL = fileURL
         self.now = now
+        self.removeItem = removeItem
         if retention.persistsLocally {
             load()
         } else {
-            try? FileManager.default.removeItem(at: fileURL)
+            removePersistedHistoryIfPresent()
         }
         storedSamples = normalize(storedSamples, at: now())
         if retention.persistsLocally, persistenceError == nil { persist() }
@@ -70,7 +73,7 @@ final class QuotaHistoryStore {
         } else {
             do {
                 if FileManager.default.fileExists(atPath: fileURL.path) {
-                    try FileManager.default.removeItem(at: fileURL)
+                    try removeItem(fileURL)
                 }
             } catch {
                 persistenceError = "无法删除本地趋势记录"
@@ -80,7 +83,12 @@ final class QuotaHistoryStore {
     }
 
     func samples(at current: Date) -> [QuotaHistorySample] {
-        storedSamples = normalize(storedSamples, at: current)
+        let normalized = normalize(storedSamples, at: current)
+        let didPrune = normalized != storedSamples
+        storedSamples = normalized
+        if didPrune, retention.persistsLocally, FileManager.default.fileExists(atPath: fileURL.path) {
+            persist()
+        }
         return storedSamples
     }
 
@@ -92,7 +100,7 @@ final class QuotaHistoryStore {
         } catch {
             storedSamples = []
             persistenceError = "本地趋势记录已损坏，已重新开始记录"
-            try? FileManager.default.removeItem(at: fileURL)
+            try? removeItem(fileURL)
         }
     }
 
@@ -105,6 +113,15 @@ final class QuotaHistoryStore {
             persistenceError = nil
         } catch {
             persistenceError = "无法保存本地趋势记录"
+        }
+    }
+
+    private func removePersistedHistoryIfPresent() {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        do {
+            try removeItem(fileURL)
+        } catch {
+            persistenceError = "无法删除本地趋势记录"
         }
     }
 

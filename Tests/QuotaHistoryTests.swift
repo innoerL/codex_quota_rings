@@ -60,6 +60,25 @@ import Foundation
         _ = recovered.setRetention(.session30Minutes, at: clock)
         precondition(!FileManager.default.fileExists(atPath: file.path), "disabling persistence must delete its file")
 
+        let pruneFile = root.appendingPathComponent("prune-history.json")
+        var pruneClock = base
+        let pruning = QuotaHistoryStore(retention: .local24Hours, fileURL: pruneFile, now: { pruneClock })
+        _ = pruning.record(snapshot(0, 25, 35))
+        pruneClock = base.addingTimeInterval(25 * 3_600)
+        precondition(pruning.samples(at: pruneClock).isEmpty)
+        let persistedAfterPrune = try JSONDecoder().decode([QuotaHistorySample].self, from: Data(contentsOf: pruneFile))
+        precondition(persistedAfterPrune.isEmpty, "read-time pruning must also remove expired records from disk")
+
+        let undeletableFile = root.appendingPathComponent("undeletable-history.json")
+        try Data("[]".utf8).write(to: undeletableFile)
+        let deletionFailure = QuotaHistoryStore(retention: .session30Minutes,
+                                                fileURL: undeletableFile,
+                                                now: { base },
+                                                removeItem: { _ in throw CocoaError(.fileWriteNoPermission) })
+        precondition(deletionFailure.persistenceError != nil)
+        precondition(FileManager.default.fileExists(atPath: undeletableFile.path),
+                     "failed opt-out deletion must remain visible instead of being silently ignored")
+
         print("PASS: private quota history retention, pruning, recovery, and deletion")
     }
 }

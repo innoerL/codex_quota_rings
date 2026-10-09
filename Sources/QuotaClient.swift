@@ -188,16 +188,23 @@ final class QuotaClient {
         } catch { fail("额度数据格式异常，将自动重试") }
     }
     private func acceptTasks(_ result: [String: Any]) {
-        guard let rows = result["data"] as? [[String: Any]] else { return }
-        let active = rows.compactMap { row -> ActiveCodexThread? in
+        guard let active = Self.activeThreads(from: result) else { return }
+        onTasksChange?(taskStatusStore.update(active: active, at: Date()))
+    }
+
+    static func activeThreads(from result: [String: Any]) -> [ActiveCodexThread]? {
+        guard let rows = result["data"] as? [[String: Any]] else { return nil }
+        var active: [ActiveCodexThread] = []
+        for row in rows {
             guard let id = row["id"] as? String,
                   let status = row["status"] as? [String: Any],
-                  status["type"] as? String == "active" else { return nil }
+                  let type = status["type"] as? String else { return nil }
+            guard type == "active" else { continue }
             let title = (row["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let preview = (row["preview"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return ActiveCodexThread(id: id, title: title?.isEmpty == false ? title! : (preview?.isEmpty == false ? preview! : "未命名任务"))
+            active.append(ActiveCodexThread(id: id, title: title?.isEmpty == false ? title! : (preview?.isEmpty == false ? preview! : "未命名任务")))
         }
-        onTasksChange?(taskStatusStore.update(active: active, at: Date()))
+        return active
     }
     private func fail(_ message: String) {
         guard !stopped else { return }

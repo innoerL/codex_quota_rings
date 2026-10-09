@@ -11,6 +11,7 @@ final class LargeQuotaView: QuotaView {
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
+    var canOpenCodex = false { didSet { rebuildGuidance(); rebuildTaskRows() } }
     var onInstallCodex: (() -> Void)?
     var onOpenCodex: (() -> Void)?
     var onTaskClick: ((String) -> Void)?
@@ -67,7 +68,8 @@ final class LargeQuotaView: QuotaView {
     private var guidanceTitle: String? {
         switch connectionState {
         case .codexNotInstalled: return "安装 Codex"
-        case .authenticationRequired, .disconnected: return "打开 Codex"
+        case .authenticationRequired where canOpenCodex,
+             .disconnected where canOpenCodex: return "打开 Codex"
         default: return nil
         }
     }

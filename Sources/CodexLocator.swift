@@ -34,7 +34,7 @@ struct CodexLocator: CodexLocating {
         self.init(applicationLocator: WorkspaceCodexApplicationLocator(),
                   environment: ProcessInfo.processInfo.environment,
                   homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
-                  isExecutable: FileManager.default.isExecutableFile(atPath:))
+                  isExecutable: Self.isRunnableExecutable(at:))
     }
 
     init(applicationLocator: CodexApplicationLocating,
@@ -78,5 +78,11 @@ struct CodexLocator: CodexLocating {
             }
         }
         return nil
+    }
+
+    static func isRunnableExecutable(at path: String) -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: path) else { return false }
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        return (try? resolved.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
     }
 }

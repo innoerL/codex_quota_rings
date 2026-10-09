@@ -10,6 +10,7 @@ final class QuotaDetailsView: NSView {
     var taskStatuses: [WidgetTaskStatus] = [] { didSet { rebuildTaskRows() } }
     var connectionError: String? { didSet { updateLabels() } }
     var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance(); rebuildTaskRows() } }
+    var canOpenCodex = false { didSet { rebuildGuidance(); rebuildTaskRows() } }
     var historySamples: [QuotaHistorySample] = [] { didSet { trend.samples = historySamples } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { trend.retention = historyRetention } }
     var onInstallCodex: (() -> Void)?
@@ -116,7 +117,8 @@ final class QuotaDetailsView: NSView {
     private var guidanceTitle: String? {
         switch connectionState {
         case .codexNotInstalled: return "安装 Codex"
-        case .authenticationRequired, .disconnected: return "打开 Codex"
+        case .authenticationRequired where canOpenCodex,
+             .disconnected where canOpenCodex: return "打开 Codex"
         default: return nil
         }
     }

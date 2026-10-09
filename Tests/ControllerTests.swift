@@ -6,7 +6,12 @@ import AppKit
         let suite = "quota-controller-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
-        let app = QuotaApp(defaults: defaults, client: QuotaClient(executableURL: URL(fileURLWithPath: CommandLine.arguments[1])))
+        let historyRoot = FileManager.default.temporaryDirectory.appendingPathComponent("quota-controller-\(UUID().uuidString)", isDirectory: true)
+        try! FileManager.default.createDirectory(at: historyRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: historyRoot) }
+        let app = QuotaApp(defaults: defaults,
+                           client: QuotaClient(executableURL: URL(fileURLWithPath: CommandLine.arguments[1])),
+                           historyFileURL: historyRoot.appendingPathComponent("quota-history.json"))
         app.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
         defer { app.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification)) }
         var p = WidgetPreferences(size: .small, smallLayout: .vertical, displayScope: .always)
