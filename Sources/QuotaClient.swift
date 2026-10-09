@@ -23,10 +23,13 @@ final class QuotaClient {
     private let taskStatusStore = TaskStatusStore()
     private let executableURL: URL?
     private let locator: CodexLocating
+    private let sessionActivity: CodexSessionActivityProviding
 
-    init(executableURL: URL? = nil, locator: CodexLocating = CodexLocator()) {
+    init(executableURL: URL? = nil, locator: CodexLocating = CodexLocator(),
+         sessionActivity: CodexSessionActivityProviding = CodexSessionActivity()) {
         self.executableURL = executableURL
         self.locator = locator
+        self.sessionActivity = sessionActivity
     }
 
     func start() {
@@ -68,7 +71,7 @@ final class QuotaClient {
         nextID += 1
         let id = nextID
         pendingTaskID = id
-        send(["id": id, "method": "thread/list"])
+        send(["id": id, "method": "thread/list", "params": [:]])
         let token = generation
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
             guard let self, self.generation == token, self.pendingTaskID == id else { return }
@@ -188,18 +191,18 @@ final class QuotaClient {
         } catch { fail("额度数据格式异常，将自动重试") }
     }
     private func acceptTasks(_ result: [String: Any]) {
-        guard let active = Self.activeThreads(from: result) else { return }
+        guard let active = Self.activeThreads(from: result, sessionActiveIDs: sessionActivity.activeThreadIDs(at: Date())) else { return }
         onTasksChange?(taskStatusStore.update(active: active, at: Date()))
     }
 
-    static func activeThreads(from result: [String: Any]) -> [ActiveCodexThread]? {
+    static func activeThreads(from result: [String: Any], sessionActiveIDs: Set<String> = []) -> [ActiveCodexThread]? {
         guard let rows = result["data"] as? [[String: Any]] else { return nil }
         var active: [ActiveCodexThread] = []
         for row in rows {
             guard let id = row["id"] as? String,
                   let status = row["status"] as? [String: Any],
                   let type = status["type"] as? String else { return nil }
-            guard type == "active" else { continue }
+            guard type == "active" || (type == "notLoaded" && sessionActiveIDs.contains(id)) else { continue }
             let title = (row["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let preview = (row["preview"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             active.append(ActiveCodexThread(id: id, title: title?.isEmpty == false ? title! : (preview?.isEmpty == false ? preview! : "未命名任务")))

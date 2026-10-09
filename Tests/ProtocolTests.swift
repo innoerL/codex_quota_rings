@@ -12,6 +12,10 @@ private final class CountingLocator: CodexLocating {
     }
 }
 
+private struct EmptySessionActivity: CodexSessionActivityProviding {
+    func activeThreadIDs(at now: Date) -> Set<String> { [] }
+}
+
 @main struct ProtocolTests {
     private static var normalClient: QuotaClient!
     private static var authClient: QuotaClient!
@@ -29,6 +33,12 @@ private final class CountingLocator: CodexLocating {
         ]]
         precondition(QuotaClient.activeThreads(from: malformed) == nil,
                      "one malformed row must reject the whole poll instead of completing an active task")
+        let locallyActive: [String: Any] = ["data": [
+            ["id": "current", "name": "真实当前任务", "status": ["type": "notLoaded"]],
+            ["id": "old", "name": "历史任务", "status": ["type": "notLoaded"]]
+        ]]
+        precondition(QuotaClient.activeThreads(from: locallyActive, sessionActiveIDs: ["current"])?.map(\.title) == ["真实当前任务"],
+                     "a locally active Codex session must recover its real title from a notLoaded thread")
         startNormalFixture(URL(fileURLWithPath: CommandLine.arguments[1]))
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
             fputs("FAIL: protocol test timed out\n", stderr)
@@ -38,7 +48,7 @@ private final class CountingLocator: CodexLocating {
     }
 
     private static func startNormalFixture(_ executable: URL) {
-        normalClient = QuotaClient(executableURL: executable)
+        normalClient = QuotaClient(executableURL: executable, sessionActivity: EmptySessionActivity())
         var readings: [Int] = []
         var taskTitles: [String] = []
         normalClient.onConnectionState = { normalStates.append($0) }
@@ -71,7 +81,7 @@ private final class CountingLocator: CodexLocating {
     }
 
     private static func startAuthenticationFixture(_ executable: URL) {
-        authClient = QuotaClient(executableURL: executable)
+        authClient = QuotaClient(executableURL: executable, sessionActivity: EmptySessionActivity())
         authClient.onConnectionState = { state in
             guard state == .authenticationRequired else { return }
             authClient.stop()

@@ -48,6 +48,8 @@ import AppKit
         precondition(large.subviews.compactMap { $0 as? TaskRowView }.count == tasks.count,
                      "large details must use reusable task rows")
         large.isExpanded = true
+        precondition(large.subviews.compactMap { $0 as? TaskRowView }.allSatisfy { $0.frame.minY < 322 },
+                     "expanded large card must place task rows above the trend chart")
         large.connectionState = .codexNotInstalled
         precondition(large.subviews.compactMap { $0 as? NSButton }.map(\.title) == ["安装 Codex"])
         large.canOpenCodex = false

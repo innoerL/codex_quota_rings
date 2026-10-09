@@ -27,6 +27,7 @@ for line in sys.stdin:
         initialized = True
     elif method == 'thread/list':
         assert initialized
+        assert message['params'] == {}
         emit({'id': message['id'], 'result': {'data': [
             {'id': 'first', 'name': '迁移目录编写', 'preview': '迁移目录编写', 'status': {'type': 'active'}},
             {'id': 'second', 'name': '新增礼物赠送记录表', 'preview': '新增礼物赠送记录表', 'status': {'type': 'active'}},

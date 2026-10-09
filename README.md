@@ -46,6 +46,8 @@ The default mode keeps only the latest **30 minutes** in memory and writes no tr
 
 Switching back to the 30-minute session mode immediately deletes that file. Task IDs, titles, task duration, account data, credentials, and raw protocol messages are never written into quota history. Task information stays in memory and is cleared on restart.
 
+When Codex reports an unloaded thread, Quota Rings reads the local Codex session log only to compare `task_started` and `task_complete` boundaries and determine whether that thread is still running. It obtains the displayed title from Codex’s local `thread/list` response, never writes session logs, and does not retain their contents.
+
 Quota Rings communicates only with the local Codex app-server child process over stdio. It makes no separate network requests. Codex may use its existing authentication and network connection to retrieve account limits.
 
 ## Build from source

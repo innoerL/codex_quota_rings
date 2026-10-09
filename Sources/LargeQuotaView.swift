@@ -59,12 +59,13 @@ final class LargeQuotaView: QuotaView {
                     label(forecastText(item.2), x: 16, y: y + 41, size: 10.5, weight: .medium, color: .secondaryLabelColor)
                 }
             }
+            let taskOffset = taskSectionHeight
             QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
-                                    in: NSRect(x: 16, y: 322, width: 248, height: 96))
+                                    in: NSRect(x: 16, y: 322 + taskOffset, width: 248, height: 96))
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16, y: 432, size: 10, color: .secondaryLabelColor)
+            label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16, y: 432 + taskOffset, size: 10, color: .secondaryLabelColor)
         }
-        drawTaskRows(startY: isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height)
+        drawTaskRows(startY: isExpanded ? 286 : Self.collapsedSize.height)
     }
     private var guidanceTitle: String? {
         switch connectionState {
@@ -85,7 +86,7 @@ final class LargeQuotaView: QuotaView {
     }
     override func rebuildTaskRows() {
         taskRows.forEach { $0.removeFromSuperview() }; taskRows.removeAll()
-        let startY = isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height
+        let startY = isExpanded ? 286 : Self.collapsedSize.height
         for (index, task) in taskStatuses.enumerated() {
             let row = TaskRowView(status: task,
                                   frame: NSRect(x: 10, y: startY + 4 + CGFloat(index) * 30,
