@@ -30,6 +30,8 @@ class QuotaView: NSView {
     var onClick: (() -> Void)?
     var onDrag: (() -> Void)?
     var onDragFinished: (() -> Void)?
+    var onPointerEntered: (() -> Void)?
+    var onPointerExited: (() -> Void)?
     private var dragStart: NSPoint?
     private var windowStart: NSPoint?
     private var dragged = false
@@ -48,8 +50,8 @@ class QuotaView: NSView {
         let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
         addTrackingArea(area); hoverTracking = area
     }
-    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
-    override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
+    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true; onPointerEntered?() }
+    override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true; onPointerExited?() }
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

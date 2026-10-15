@@ -20,6 +20,8 @@ compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPresen
 "$quota_test_dir/presentation"
 compile Sources/WidgetPlacementResolver.swift Tests/WidgetPlacementResolverTests.swift -o "$quota_test_dir/placement"
 "$quota_test_dir/placement"
+compile Sources/HoverDetailController.swift Tests/HoverDetailControllerTests.swift -o "$quota_test_dir/hover"
+"$quota_test_dir/hover"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPresentation.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexLocator.swift Sources/QuotaConnectionState.swift Sources/QuotaClient.swift Tests/ProtocolTests.swift -o "$quota_test_dir/protocol"
 "$quota_test_dir/protocol" "$PWD/Tests/fake-codex.py" "$PWD/Tests/fake-codex-no-auth.py"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPresentation.swift Sources/WidgetPreferences.swift Sources/WidgetVisibility.swift Sources/CodexLocator.swift Tests/CodexLocatorTests.swift -o "$quota_test_dir/locator"

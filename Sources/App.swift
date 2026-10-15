@@ -22,6 +22,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var globalMonitor: Any?
     private var freshnessTimer: Timer?
     private var visibilityTimer: Timer?
+    private lazy var hoverDetails = HoverDetailController { [weak self] state in self?.applyDetailState(state) }
 
     init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
         self.defaults = defaults; self.client = client
@@ -67,13 +68,20 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.showUsed = defaults.bool(forKey: "showUsed")
         view.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         view.onClick = { [weak self] in self?.toggleDetails() }
-        view.onDrag = { [weak self] in self?.hideDetails() }
+        view.onDrag = { [weak self] in self?.hoverDetails.dragStarted() }
         view.onDragFinished = { [weak self] in self?.snapPanelAfterDrag() }
+        view.onPointerEntered = { [weak self] in self?.hoverDetails.pointerEnteredWidget() }
+        view.onPointerExited = { [weak self] in self?.hoverDetails.pointerExitedWidget() }
         largeView.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         largeView.onClick = { [weak self] in self?.toggleDetails() }
+        largeView.onDrag = { [weak self] in self?.hoverDetails.dragStarted() }
         largeView.onDragFinished = { [weak self] in self?.snapPanelAfterDrag() }
+        largeView.onPointerEntered = { [weak self] in self?.hoverDetails.pointerEnteredWidget() }
+        largeView.onPointerExited = { [weak self] in self?.hoverDetails.pointerExitedWidget() }
         largeView.onInstallCodex = { [weak self] in self?.installCodex() }
         details.onInstallCodex = { [weak self] in self?.installCodex() }
+        details.onPointerEntered = { [weak self] in self?.hoverDetails.pointerEnteredDetail() }
+        details.onPointerExited = { [weak self] in self?.hoverDetails.pointerExitedDetail() }
         largeView.showUsed = view.showUsed
         widgetMenu.onChange = { [weak self] selection in self?.applyPreferences(selection) }
         applyPresentation()
@@ -303,14 +311,25 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         detailsPanel.setFrame(NSRect(x: current.minX, y: current.maxY - size.height, width: size.width, height: size.height), display: true)
     }
     @objc func toggleDetails() {
+        if hoverDetails.state != .pinned && !shouldDisplayNow() { return }
+        hoverDetails.togglePinned()
+    }
+    private func applyDetailState(_ state: HoverDetailState) {
+        switch state {
+        case .closed: dismissDetails()
+        case .transient, .pinned: presentDetails()
+        }
+    }
+    private func presentDetails() {
+        guard shouldDisplayNow() else { hoverDetails.close(); return }
         if preferences.size == .large {
-            guard shouldDisplayNow() else { return }
-            largeView.isExpanded.toggle()
-            configureLayout(restorePosition: false)
+            if !largeView.isExpanded {
+                largeView.isExpanded = true
+                configureLayout(restorePosition: false)
+            }
             return
         }
-        if detailsPanel.isVisible { hideDetails(); return }
-        guard shouldDisplayNow() else { return }
+        guard !detailsPanel.isVisible else { return }
         view.isExpanded = true
         details.showUsed = view.showUsed
         let screen = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? panel.frame
@@ -331,8 +350,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.hideDetails() }
     }
     private func hideDetails() {
+        hoverDetails.close()
+    }
+    private func dismissDetails() {
         detailsPanel?.orderOut(nil)
         view.isExpanded = false
+        if preferences.size == .large, largeView.isExpanded {
+            largeView.isExpanded = false
+            configureLayout(restorePosition: false)
+        }
         if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor); self.globalMonitor = nil }
     }
@@ -366,8 +392,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if shouldDisplayNow() {
             if !panel.isVisible { panel.orderFrontRegardless() }
         } else {
-            if detailsPanel.isVisible { hideDetails() }
-            if largeView.isExpanded { largeView.isExpanded = false; configureLayout(restorePosition: false) }
+            if hoverDetails.state != .closed || detailsPanel.isVisible || largeView.isExpanded { hideDetails() }
             if panel.isVisible { panel.orderOut(nil) }
         }
     }
