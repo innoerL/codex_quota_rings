@@ -19,13 +19,15 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 - Large card, compact vertical rings, and compact horizontal rings.
 - Show when Codex is focused by default, always show, or show on a clear Finder desktop.
 - Native AppKit UI, 30-second quota updates, reset countdowns, and no manual refresh button.
-- Conservative five-hour forecasts after at least six samples across ten minutes. While collecting, the UI says a forecast is coming. The recent ten-minute rate must agree with the rolling rate and its end-to-end change; otherwise the UI says the rate is unstable instead of showing a misleading time. Estimates after reset are shown as “Will not run out this window”.
+- Conservative five-hour forecasts after at least six samples across ten minutes. While collecting, the widget says a forecast is coming. It compares rolling, recent robust, and recent end-to-end use rates before estimating. It labels accepted estimates with a colored **Confidence: High / Medium / Low** dot; a large rate disagreement is shown as unstable instead of a misleading time. Estimates after reset are shown as “Will not run out this window”. Weekly quota is never given a depletion-time forecast.
 - A reset-aware trend chart for the five-hour quota window.
 - Remaining quota colors: sage above 50%, warm gold at 20–50%, and terracotta below 20%.
+- Drag-end-only Codex snapping: dropping the widget within 28 points of a Codex edge places it with an 8-point gap, then avoids visible ordinary windows and the Dock-safe screen frame. It never follows Codex continuously.
+- Hover over the widget for 350 ms to open its full detail card; it closes 250 ms after the pointer has left both the widget and detail. Clicking keeps the detail pinned.
 
 ## Controls
 
-Right-click the widget or use its menu bar ring to choose size, compact orientation, visibility, whether to show used quota, and trend retention. Drag the widget to move it. Each layout keeps its own position.
+Right-click the widget or use its menu bar ring to choose size, compact orientation, visibility, opacity, density, whether to show used quota, and trend retention. Drag the widget to move it. Each layout keeps its own position.
 
 The Simplified Chinese menu offers:
 
@@ -34,6 +36,8 @@ The Simplified Chinese menu offers:
 | 大小 | 大 / 小 |
 | 小组件布局 | 竖向 / 横向 |
 | 显示范围 | 聚焦 Codex 时显示 / 一直显示 / 聚焦桌面时显示 |
+| 透明度 | 不透明（0.97）/ 半透明（0.82）/ 轻透（0.68） |
+| 紧凑度 | 标准（100%）/ 紧凑（88%）/ 极简（76%） |
 | 趋势记录 | 仅本次 · 30 分钟 / 保留 24 小时 / 保留 7 天 |
 
 ## Privacy
@@ -45,6 +49,8 @@ The default mode keeps only the latest **30 minutes** in memory and writes no tr
 Switching back to the 30-minute session mode immediately deletes that file. Account data, credentials, and raw protocol messages are never written into quota history.
 
 Quota Rings communicates only with the local Codex app-server child process over stdio. It makes no separate network requests. Codex may use its existing authentication and network connection to retrieve account limits.
+
+Quota Rings does not read Codex task/session state, display task activity, navigate Codex, send notifications, or make weekly depletion predictions.
 
 ## Build from source
 

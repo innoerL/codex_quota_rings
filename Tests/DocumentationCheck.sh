@@ -17,6 +17,14 @@ for readme in README.md README.zh-CN.md; do
     rg -qi 'Universal 2' "$readme"
     rg -qi 'unzip|解压' "$readme"
     rg -qi 'Gatekeeper|安全性' "$readme"
+    rg -qi 'drag-end|拖动结束' "$readme"
+    rg -qi '28.?point|28.?点' "$readme"
+    rg -qi '8.?point|8.?点' "$readme"
+    rg -qi '350.?ms|350 毫秒' "$readme"
+    rg -qi '250.?ms|250 毫秒' "$readme"
+    rg -qi 'confidence|可信度' "$readme"
+    rg -qi 'weekly.*never|一周额度不会' "$readme"
+    rg -qi 'task/session|任务或会话' "$readme"
 done
 
-print 'PASS: bilingual documentation covers zero-config install, privacy, stable forecasts, Universal 2, and local-only builds'
+print 'PASS: bilingual documentation covers install, presets, snapping, hover, forecast confidence, privacy, and local-only builds'
