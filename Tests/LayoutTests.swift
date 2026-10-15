@@ -23,13 +23,27 @@ import AppKit
         large.contentOpacity = WidgetOpacityPreset.translucent.alpha
         precondition(large.contentOpacity == 0.82, "large widget must retain the selected opacity")
         large.snapshot = sample
-        let forecasts = QuotaForecasts(fiveHour: .depletedAt(now.addingTimeInterval(3_600)), week: .withinCurrentWindow)
+        let forecasts = QuotaForecasts(fiveHour: QuotaForecast(outcome: .depletedAt(now.addingTimeInterval(3_600)), confidence: .medium), week: .collecting)
         large.forecasts = forecasts
         let staleCompact = QuotaView(frame: .zero)
         staleCompact.snapshot = QuotaSnapshot(fiveHour: sample.fiveHour, week: sample.week, fetchedAt: now.addingTimeInterval(-91))
         staleCompact.forecasts = forecasts
         precondition(staleCompact.forecastText(forecasts.fiveHour, at: now) == "收集中，稍后预测",
                      "stale quota data must suppress a confident depletion forecast")
+        let confidenceView = QuotaView(frame: .zero)
+        confidenceView.snapshot = sample
+        for (confidence, label, color) in [(ForecastConfidence.high, "高", QuotaLevel.ample.color),
+                                           (.medium, "中", QuotaLevel.caution.color),
+                                           (.low, "低", QuotaLevel.low.color)] {
+            let forecast = QuotaForecast(outcome: .depletedAt(now.addingTimeInterval(3_600)), confidence: confidence)
+            precondition(confidenceView.forecastText(forecast, at: now).contains("●")
+                         && confidenceView.forecastText(forecast, at: now).contains("可信度：\(label)"),
+                         "every confidence tier must render a text label and dot")
+            precondition(confidenceView.forecastColor(forecast).isEqual(color),
+                         "every confidence tier must have a distinct semantic color")
+        }
+        precondition(confidenceView.forecastText(.unstable, at: now) == "● 消耗速率不稳定，暂不预测",
+                     "unstable usage must remain separate from low confidence")
         var clicks = 0
         large.onClick = { large.isExpanded.toggle(); clicks += 1 }
         precondition(large.accessibilityPerformPress())
@@ -72,10 +86,12 @@ import AppKit
                      "detail panel must share presentation metrics and opacity")
         detail.snapshot = sample; detail.forecasts = forecasts
         let forecastFields = detail.subviews.compactMap { $0 as? NSTextField }
-            .filter { $0.stringValue.hasPrefix("预计") }
+            .filter { $0.stringValue.contains("预计") }
         precondition(forecastFields.count == 1, "only the five-hour quota should show a depletion forecast")
-        precondition(forecastFields[0].textColor?.isEqual(NSColor.secondaryLabelColor) == true,
-                     "forecast text must remain legible against the dark card")
+        precondition(forecastFields[0].stringValue.contains("●") && forecastFields[0].stringValue.contains("可信度：中"),
+                     "a five-hour depletion forecast must include a confidence label and color dot")
+        precondition(forecastFields[0].textColor?.isEqual(QuotaLevel.caution.color) == true,
+                     "a medium-confidence forecast must use the caution color")
         precondition(!detail.subviews.compactMap { $0 as? NSTextField }
             .contains(where: { $0.stringValue == "本周期内不会用尽" }),
                      "weekly quota must not claim a depletion forecast")

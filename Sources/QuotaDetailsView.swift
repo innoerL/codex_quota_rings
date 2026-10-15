@@ -104,7 +104,12 @@ final class QuotaDetailsView: NSView {
             values[index].stringValue = value.map { "\(Int($0.rounded()))%" } ?? "—"
             values[index].textColor = outdated ? .tertiaryLabelColor : .labelColor
             resets[index].stringValue = quota?.resetDescription() ?? "重置时间暂不可用"
-            forecastLabels[index].stringValue = index == 0 ? forecastText(forecasts.fiveHour) : ""
+            if index == 0 {
+                forecastLabels[index].stringValue = forecastText(forecasts.fiveHour)
+                forecastLabels[index].textColor = forecastColor(forecasts.fiveHour)
+            } else {
+                forecastLabels[index].stringValue = ""
+            }
         }
         switch connectionState {
         case .codexNotInstalled: updated.stringValue = "未找到 Codex"
@@ -120,14 +125,28 @@ final class QuotaDetailsView: NSView {
     }
     private func forecastText(_ forecast: QuotaForecast) -> String {
         guard connectionError == nil, snapshot?.isStale() != true else { return "收集中，稍后预测" }
-        switch forecast {
+        switch forecast.outcome {
         case .collecting: return "收集中，稍后预测"
-        case .unstable: return "消耗速率不稳定，暂不预测"
-        case .withinCurrentWindow: return "本周期内不会用尽"
+        case .unstable: return "● 消耗速率不稳定，暂不预测"
+        case .willNotDeplete: return "本周期内不会用尽"
         case .depletedAt(let date):
             let format = DateFormatter()
             format.dateFormat = Calendar.current.isDateInToday(date) ? "预计 HH:mm 用尽" : "预计 M/d HH:mm 用尽"
-            return format.string(from: date)
+            let confidence = forecast.confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
+            return "● \(format.string(from: date))\(confidence)"
+        }
+    }
+    private func forecastColor(_ forecast: QuotaForecast) -> NSColor {
+        switch forecast.outcome {
+        case .unstable: return .secondaryLabelColor
+        case .depletedAt:
+            switch forecast.confidence {
+            case .high: return QuotaLevel.ample.color
+            case .medium: return QuotaLevel.caution.color
+            case .low: return QuotaLevel.low.color
+            case nil: return .secondaryLabelColor
+            }
+        case .collecting, .willNotDeplete: return .secondaryLabelColor
         }
     }
     private var guidanceTitle: String? {

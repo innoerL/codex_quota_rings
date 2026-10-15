@@ -1,10 +1,32 @@
 import Foundation
 
-enum QuotaForecast: Equatable {
+enum ForecastOutcome: Equatable {
     case collecting
     case unstable
-    case withinCurrentWindow
+    case willNotDeplete
     case depletedAt(Date)
+}
+
+enum ForecastConfidence: Equatable {
+    case high
+    case medium
+    case low
+
+    var chineseLabel: String {
+        switch self {
+        case .high: return "高"
+        case .medium: return "中"
+        case .low: return "低"
+        }
+    }
+}
+
+struct QuotaForecast: Equatable {
+    let outcome: ForecastOutcome
+    let confidence: ForecastConfidence?
+
+    static let collecting = QuotaForecast(outcome: .collecting, confidence: nil)
+    static let unstable = QuotaForecast(outcome: .unstable, confidence: nil)
 }
 
 struct QuotaForecasts: Equatable {
@@ -22,12 +44,10 @@ struct QuotaForecastEngine {
     }
 
     private var fiveHourSamples: [Sample] = []
-    private var weekSamples: [Sample] = []
 
     mutating func record(_ snapshot: QuotaSnapshot) -> QuotaForecasts {
         let fiveHour = Self.record(snapshot.fiveHour, at: snapshot.fetchedAt, samples: &fiveHourSamples)
-        let week = Self.record(snapshot.week, at: snapshot.fetchedAt, samples: &weekSamples)
-        return QuotaForecasts(fiveHour: fiveHour, week: week)
+        return QuotaForecasts(fiveHour: fiveHour, week: .collecting)
     }
 
     private static func record(_ window: QuotaWindow?, at date: Date, samples: inout [Sample]) -> QuotaForecast {
@@ -43,7 +63,6 @@ struct QuotaForecastEngine {
            abs(last.resetAt - resetAt) > 0.5 || usedPercent + 0.25 < last.usedPercent {
             samples.removeAll()
         }
-
         if samples.last?.date == date {
             return forecast(at: date, resetAt: resetAt, remainingPercent: remainingPercent, samples: samples)
         }
@@ -51,7 +70,6 @@ struct QuotaForecastEngine {
         samples.append(Sample(usedPercent: usedPercent, resetAt: resetAt, date: date))
         let earliest = date.addingTimeInterval(-30 * 60)
         samples.removeAll { $0.date < earliest || abs($0.resetAt - resetAt) > 0.5 }
-
         return forecast(at: date, resetAt: resetAt, remainingPercent: remainingPercent, samples: samples)
     }
 
@@ -65,16 +83,29 @@ struct QuotaForecastEngine {
         guard recentSamples.count >= 4,
               let recentFirst = recentSamples.first,
               date.timeIntervalSince(recentFirst.date) >= 5 * 60,
-              let longRate = robustHourlyRate(for: samples),
+              let rollingRate = robustHourlyRate(for: samples),
               let recentRate = robustHourlyRate(for: recentSamples),
-              let recentEndToEndRate = endToEndHourlyRate(for: recentSamples) else { return .collecting }
+              let recentEndToEndRate = endToEndHourlyRate(for: recentSamples),
+              rollingRate >= 0.1, recentRate >= 0.1, recentEndToEndRate >= 0.1 else { return .collecting }
 
-        guard recentRate >= 0.1, recentEndToEndRate >= 0.1 else { return .collecting }
-        guard ratesAgree(longRate, recentRate), ratesAgree(recentRate, recentEndToEndRate) else { return .unstable }
+        let largestDifference = max(relativeDifference(rollingRate, recentRate),
+                                    relativeDifference(rollingRate, recentEndToEndRate),
+                                    relativeDifference(recentRate, recentEndToEndRate))
+        guard largestDifference <= 0.35 else { return .unstable }
 
+        let span = date.timeIntervalSince(first.date)
+        let confidence: ForecastConfidence
+        if samples.count >= 12, span >= 20 * 60, largestDifference <= 0.15 {
+            confidence = .high
+        } else if samples.count >= 8, span >= 15 * 60, largestDifference <= 0.25 {
+            confidence = .medium
+        } else {
+            confidence = .low
+        }
         let secondsUntilDepletion = remainingPercent / recentEndToEndRate * 3_600
         let depletionDate = date.addingTimeInterval(secondsUntilDepletion)
-        return depletionDate.timeIntervalSince1970 >= resetAt ? .withinCurrentWindow : .depletedAt(depletionDate)
+        let outcome: ForecastOutcome = depletionDate.timeIntervalSince1970 >= resetAt ? .willNotDeplete : .depletedAt(depletionDate)
+        return QuotaForecast(outcome: outcome, confidence: confidence)
     }
 
     private static func robustHourlyRate(for samples: [Sample]) -> Double? {
@@ -98,7 +129,7 @@ struct QuotaForecastEngine {
         return increase / seconds * 3_600
     }
 
-    private static func ratesAgree(_ first: Double, _ second: Double) -> Bool {
-        abs(first - second) / max(first, second, 0.1) <= 0.35
+    private static func relativeDifference(_ first: Double, _ second: Double) -> Double {
+        abs(first - second) / max(first, second, 0.1)
     }
 }

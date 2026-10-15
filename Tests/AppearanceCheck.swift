@@ -23,7 +23,7 @@ final class PreviewSurface: NSView {
         card.contentOpacity = WidgetOpacityPreset.translucent.alpha
         precondition(card.contentOpacity == 0.82, "the detail surface must expose its effective opacity")
         card.snapshot = snapshot
-        card.forecasts = QuotaForecasts(fiveHour: .depletedAt(now.addingTimeInterval(3_600)), week: .withinCurrentWindow)
+        card.forecasts = QuotaForecasts(fiveHour: QuotaForecast(outcome: .depletedAt(now.addingTimeInterval(3_600)), confidence: .medium), week: .collecting)
         card.historySamples = [
             QuotaHistorySample(timestamp: now.addingTimeInterval(-600), fiveHourUsedPercent: 20, weekUsedPercent: 45),
             QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)

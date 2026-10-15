@@ -52,7 +52,7 @@ final class LargeQuotaView: QuotaView {
                 label(value.map { "\(Int($0.rounded()))%" } ?? "—", x: 212 * scale, y: y, size: 13 * scale, weight: .semibold, color: stale ? .tertiaryLabelColor : .labelColor)
                 label(item.1?.resetDescription() ?? "重置时间暂不可用", x: 16 * scale, y: y + 23 * scale, size: 10.5 * scale, color: .secondaryLabelColor)
                 if index == 0 {
-                    label(forecastText(item.2), x: 16 * scale, y: y + 41 * scale, size: 10.5 * scale, weight: .medium, color: .secondaryLabelColor)
+                    label(forecastText(item.2), x: 16 * scale, y: y + 41 * scale, size: 10.5 * scale, weight: .medium, color: forecastColor(item.2))
                 }
             }
             QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
