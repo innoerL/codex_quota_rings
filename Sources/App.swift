@@ -68,12 +68,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         view.onClick = { [weak self] in self?.toggleDetails() }
         view.onDrag = { [weak self] in self?.hideDetails() }
+        view.onDragFinished = { [weak self] in self?.snapPanelAfterDrag() }
         largeView.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         largeView.onClick = { [weak self] in self?.toggleDetails() }
+        largeView.onDragFinished = { [weak self] in self?.snapPanelAfterDrag() }
         largeView.onInstallCodex = { [weak self] in self?.installCodex() }
         details.onInstallCodex = { [weak self] in self?.installCodex() }
         largeView.showUsed = view.showUsed
         widgetMenu.onChange = { [weak self] selection in self?.applyPreferences(selection) }
+        applyPresentation()
         configureLayout(restorePosition: true)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "circle.dashed", accessibilityDescription: "Codex 额度")
@@ -183,12 +186,13 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applyPreferences(_ selection: WidgetPreferences) {
         let previous = preferences
         let structuralChange = previous.size != selection.size || previous.smallLayout != selection.smallLayout
-            || previous.displayScope != selection.displayScope
+            || previous.displayScope != selection.displayScope || previous.densityPreset != selection.densityPreset
         if structuralChange { savePosition() }
         let layoutChanged = preferences.positionKey != selection.positionKey
         if structuralChange { hideDetails(); largeView.isExpanded = false }
         preferences = selection; preferences.save(to: defaults)
         widgetMenu.preferences = selection
+        applyPresentation()
         if previous.historyRetention != selection.historyRetention {
             _ = historyStore.setRetention(selection.historyRetention, at: Date())
             publishHistory()
@@ -222,6 +226,46 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
         content.frame = NSRect(origin: .zero, size: size)
         panel.hasShadow = preferences.size == .large
+    }
+    private func applyPresentation() {
+        let metrics = WidgetLayoutMetrics(density: preferences.densityPreset)
+        let opacity = preferences.opacityPreset.alpha
+        view.metrics = metrics; view.contentOpacity = opacity
+        largeView.metrics = metrics; largeView.contentOpacity = opacity
+        details.metrics = metrics; details.contentOpacity = opacity
+        panel?.alphaValue = opacity
+        detailsPanel?.alphaValue = opacity
+    }
+    private func snapPanelAfterDrag() {
+        guard let panel else { return }
+        let screenFrame = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? panel.frame
+        let desktopTop = NSScreen.screens.map { $0.frame.maxY }.max() ?? screenFrame.maxY
+        let ownPID = Int(ProcessInfo.processInfo.processIdentifier)
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        var codexFrames: [CGRect] = []
+        var occupiedFrames: [CGRect] = []
+        for item in windows {
+            guard item[kCGWindowLayer as String] as? Int == 0,
+                  (item[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  item[kCGWindowOwnerPID as String] as? Int != ownPID,
+                  let bounds = item[kCGWindowBounds as String] as? [String: Any],
+                  let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+                  frame.width > 40, frame.height > 40 else { continue }
+            let appKitFrame = CGRect(x: frame.minX, y: desktopTop - frame.maxY, width: frame.width, height: frame.height)
+            let owner = item[kCGWindowOwnerName as String] as? String
+            if owner == "Codex" || owner == "ChatGPT" {
+                codexFrames.append(appKitFrame)
+            } else {
+                occupiedFrames.append(appKitFrame)
+            }
+        }
+        let resolved = WidgetPlacementResolver.resolve(panelFrame: panel.frame, screenFrame: screenFrame,
+                                                       codexFrames: codexFrames, occupiedFrames: occupiedFrames)
+        changingFrame = true
+        panel.setFrameOrigin(resolved.origin)
+        changingFrame = false
+        placementAnchor = NSPoint(x: resolved.minX, y: resolved.maxY)
+        savePosition()
     }
     private func applyQuota(snapshot: QuotaSnapshot?, error: String?) {
         let forecasts = (error == nil ? snapshot.map { forecastEngine.record($0) } : nil) ?? .collecting

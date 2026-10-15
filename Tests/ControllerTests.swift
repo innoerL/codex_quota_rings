@@ -17,8 +17,21 @@ import AppKit
         var p = WidgetPreferences(size: .small, smallLayout: .vertical, displayScope: .always)
         app.applyPreferences(p)
         precondition(app.panel.isVisible)
-        let compactSize = app.panel.frame.size
         let compactOrigin = app.panel.frame.origin
+        let compactTop = app.panel.frame.maxY
+        p.opacityPreset = .light
+        p.densityPreset = .compact
+        app.applyPreferences(p)
+        precondition(app.panel.alphaValue == WidgetOpacityPreset.light.alpha,
+                     "selected opacity must propagate to the compact panel")
+        precondition(app.panel.frame.size == NSSize(width: 42 * 0.88, height: 124 * 0.88),
+                     "compact density must alter the panel frame")
+        precondition(app.panel.frame.minX == compactOrigin.x && app.panel.frame.maxY == compactTop,
+                     "density changes must preserve the saved top-left anchor")
+        p.densityPreset = .minimal
+        app.applyPreferences(p)
+        precondition(app.panel.frame.size == NSSize(width: 42 * 0.76, height: 124 * 0.76),
+                     "every density preset must change the active frame")
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         p.size = .large; app.applyPreferences(p)
         let collapsedHeight = app.panel.frame.height
@@ -37,7 +50,10 @@ import AppKit
         p.size = .large; app.applyPreferences(p)
         precondition(app.panel.frame.origin == bottomOrigin, "temporary expansion clamp must not overwrite saved position")
         p.size = .small; app.applyPreferences(p)
-        precondition(app.panel.frame.size == compactSize && app.panel.frame.origin == compactOrigin)
+        let finalCompactSize = WidgetLayoutMetrics(density: .minimal).smallVertical
+        precondition(app.panel.frame.size == finalCompactSize
+                     && app.panel.frame.minX == compactOrigin.x && app.panel.frame.maxY == compactTop,
+                     "restoring the compact widget must retain density and its top-left anchor")
         app.toggleDetails(); precondition(app.detailsPanel.isVisible)
         let detailTop = app.detailsPanel.frame.maxY
         p.historyRetention = .local24Hours; app.applyPreferences(p)

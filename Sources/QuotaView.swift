@@ -14,8 +14,10 @@ extension QuotaLevel {
 class QuotaView: NSView {
     static let preferredSize = NSSize(width: 42, height: 124)
     var smallLayout: SmallLayout = .vertical { didSet { needsDisplay = true } }
+    var metrics = WidgetLayoutMetrics(density: .standard) { didSet { needsDisplay = true } }
+    var contentOpacity: CGFloat = WidgetOpacityPreset.opaque.alpha { didSet { needsDisplay = true } }
     private var baseContentSize: NSSize {
-        smallLayout == .vertical ? Self.preferredSize : NSSize(width: 104, height: 68)
+        smallLayout == .vertical ? metrics.smallVertical : metrics.smallHorizontal
     }
     var preferredContentSize: NSSize { baseContentSize }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
@@ -27,6 +29,7 @@ class QuotaView: NSView {
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
     var onDrag: (() -> Void)?
+    var onDragFinished: (() -> Void)?
     private var dragStart: NSPoint?
     private var windowStart: NSPoint?
     private var dragged = false
@@ -63,8 +66,10 @@ class QuotaView: NSView {
         window?.setFrameOrigin(NSPoint(x: origin.x + dx, y: origin.y + dy))
     }
     override func mouseUp(with event: NSEvent) {
+        let finishedDragging = dragStart != nil && dragged
         if dragStart != nil && !dragged { onClick?() }
         dragStart = nil; windowStart = nil
+        if finishedDragging { onDragFinished?() }
     }
     func text(_ string: String, center: CGPoint, size: CGFloat, weight: NSFont.Weight, color: NSColor) {
         let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: size, weight: weight), .foregroundColor: color]
@@ -111,8 +116,9 @@ class QuotaView: NSView {
             NSColor.white.withAlphaComponent(isExpanded ? 0.075 : 0.045).setFill(); surface.fill()
             NSColor.white.withAlphaComponent(0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
-        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26, y: 30), title: "5 小时")
-        ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78, y: smallLayout == .vertical ? 86 : 30), title: "一周")
+        let scale = metrics.scale
+        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: "5 小时", radius: metrics.compactRingRadius)
+        ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: "一周", radius: metrics.compactRingRadius)
         if connectionError != nil || snapshot?.isStale() == true {
             QuotaLevel.caution.color.setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()

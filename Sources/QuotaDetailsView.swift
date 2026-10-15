@@ -3,8 +3,10 @@ import AppKit
 /// Native popover material and labels; all data updates are automatic.
 final class QuotaDetailsView: NSView {
     static let preferredSize = NSSize(width: 246, height: 284)
-    private var guidanceHeight: CGFloat { guidanceTitle == nil ? 0 : 38 }
-    var preferredContentSize: NSSize { NSSize(width: Self.preferredSize.width, height: Self.preferredSize.height + guidanceHeight) }
+    private var guidanceHeight: CGFloat { guidanceTitle == nil ? 0 : 38 * metrics.scale }
+    var preferredContentSize: NSSize { NSSize(width: metrics.detail.width, height: metrics.detail.height + guidanceHeight) }
+    var metrics = WidgetLayoutMetrics(density: .standard) { didSet { applyPresentation() } }
+    var contentOpacity: CGFloat = WidgetOpacityPreset.opaque.alpha { didSet { applyPresentation() } }
     var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
     var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
     var connectionError: String? { didSet { updateLabels() } }
@@ -21,6 +23,7 @@ final class QuotaDetailsView: NSView {
     private var automatic: NSTextField!
     private let trend = QuotaTrendView()
     private var guidanceButton: NSButton?
+    private var baseFrames: [ObjectIdentifier: NSRect] = [:]
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
@@ -54,6 +57,8 @@ final class QuotaDetailsView: NSView {
         updated = label("", frame: NSRect(x: 16, y: 257, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
         automatic = label("自动刷新", frame: NSRect(x: 177, y: 257, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
         automatic.alignment = .right
+        captureBaseFrames()
+        applyPresentation()
         updateLabels()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -64,6 +69,21 @@ final class QuotaDetailsView: NSView {
         field.isSelectable = false
         addSubview(field)
         return field
+    }
+    private func captureBaseFrames() {
+        for subview in subviews where subview !== material { baseFrames[ObjectIdentifier(subview)] = subview.frame }
+    }
+    private func applyPresentation() {
+        let scale = metrics.scale
+        layer?.cornerRadius = 14 * scale
+        layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        material.alphaValue = 1
+        material.frame = bounds
+        for subview in subviews where subview !== material {
+            guard let frame = baseFrames[ObjectIdentifier(subview)] else { continue }
+            subview.frame = NSRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
+        }
+        needsDisplay = true
     }
     func updateLabels() {
         guard values.count == 2, updated != nil else { return }
@@ -111,7 +131,8 @@ final class QuotaDetailsView: NSView {
         let button = NSButton(title: title, target: self, action: #selector(installCodex))
         button.bezelStyle = .rounded
         button.controlSize = .small
-        button.frame = NSRect(x: 16, y: Self.preferredSize.height + 4, width: 104, height: 28)
+        let scale = metrics.scale
+        button.frame = NSRect(x: 16 * scale, y: metrics.detail.height + 4 * scale, width: 104 * scale, height: 28 * scale)
         addSubview(button); guidanceButton = button
     }
     @objc private func installCodex() { onInstallCodex?() }

@@ -16,8 +16,12 @@ final class PreviewSurface: NSView {
         let snapshot = QuotaSnapshot(fiveHour: QuotaWindow(usedPercent: 32, windowDurationMins: 300, resetsAt: now.timeIntervalSince1970 + 8760), week: QuotaWindow(usedPercent: 53, windowDurationMins: 10080, resetsAt: now.timeIntervalSince1970 + 295200), fetchedAt: now)
         let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 370))
         let compact = QuotaView(frame: NSRect(origin: NSPoint(x: 5, y: 44), size: QuotaView.preferredSize))
+        compact.contentOpacity = WidgetOpacityPreset.light.alpha
+        precondition(compact.contentOpacity == 0.68, "the compact surface must expose its effective opacity")
         compact.snapshot = snapshot
         let card = QuotaDetailsView(frame: NSRect(origin: NSPoint(x: 55, y: 8), size: QuotaDetailsView.preferredSize))
+        card.contentOpacity = WidgetOpacityPreset.translucent.alpha
+        precondition(card.contentOpacity == 0.82, "the detail surface must expose its effective opacity")
         card.snapshot = snapshot
         card.forecasts = QuotaForecasts(fiveHour: .depletedAt(now.addingTimeInterval(3_600)), week: .withinCurrentWindow)
         card.historySamples = [

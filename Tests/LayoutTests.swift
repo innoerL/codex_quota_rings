@@ -11,7 +11,17 @@ import AppKit
         compact.smallLayout = .vertical
         precondition(compact.preferredContentSize.width < compact.preferredContentSize.height)
         precondition(QuotaView.preferredSize == NSSize(width: 42, height: 124), "compact rings must not grow")
+        compact.metrics = WidgetLayoutMetrics(density: .minimal)
+        precondition(compact.preferredContentSize.width == 42 * 0.76 && compact.preferredContentSize.height == 124 * 0.76,
+                     "minimal density must resize the compact widget without a transform")
+        compact.contentOpacity = WidgetOpacityPreset.light.alpha
+        precondition(compact.contentOpacity == 0.68, "compact widget must retain the selected opacity")
         let large = LargeQuotaView(frame: NSRect(origin: .zero, size: LargeQuotaView.collapsedSize))
+        large.metrics = WidgetLayoutMetrics(density: .compact)
+        precondition(large.preferredContentSize.width == 280 * 0.88 && large.preferredContentSize.height == 174 * 0.88,
+                     "compact density must resize the large widget")
+        large.contentOpacity = WidgetOpacityPreset.translucent.alpha
+        precondition(large.contentOpacity == 0.82, "large widget must retain the selected opacity")
         large.snapshot = sample
         let forecasts = QuotaForecasts(fiveHour: .depletedAt(now.addingTimeInterval(3_600)), week: .withinCurrentWindow)
         large.forecasts = forecasts
@@ -30,7 +40,7 @@ import AppKit
         precondition(large.preferredContentSize.height == expandedHeight,
                      "expanded large card must reserve chart space before samples arrive")
         precondition(large.accessibilityPerformPress())
-        precondition(clicks == 2 && large.preferredContentSize.height == LargeQuotaView.collapsedSize.height,
+        precondition(clicks == 2 && large.preferredContentSize.height == large.metrics.largeCollapsed.height,
                      "collapsed large card must return to its fixed compact height")
         large.isExpanded = true
         large.connectionState = .codexNotInstalled
@@ -56,6 +66,10 @@ import AppKit
         expanded.frame = NSRect(origin: NSPoint(x: 320, y: 60), size: expanded.preferredContentSize)
         root.addSubview(expanded)
         let detail = QuotaDetailsView(frame: .zero)
+        detail.metrics = WidgetLayoutMetrics(density: .compact)
+        detail.contentOpacity = WidgetOpacityPreset.translucent.alpha
+        precondition(detail.preferredContentSize.width == 246 * 0.88 && detail.contentOpacity == 0.82,
+                     "detail panel must share presentation metrics and opacity")
         detail.snapshot = sample; detail.forecasts = forecasts
         let forecastFields = detail.subviews.compactMap { $0 as? NSTextField }
             .filter { $0.stringValue.hasPrefix("预计") }

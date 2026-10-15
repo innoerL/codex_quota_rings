@@ -4,9 +4,9 @@ import AppKit
 final class LargeQuotaView: QuotaView {
     static let collapsedSize = NSSize(width: 280, height: 174)
     private static let expandedBaseHeight: CGFloat = 456
-    private var guidanceHeight: CGFloat { isExpanded && guidanceTitle != nil ? 38 : 0 }
+    private var guidanceHeight: CGFloat { isExpanded && guidanceTitle != nil ? 38 * metrics.scale : 0 }
     override var preferredContentSize: NSSize {
-        NSSize(width: Self.collapsedSize.width, height: isExpanded ? Self.expandedBaseHeight + guidanceHeight : Self.collapsedSize.height)
+        NSSize(width: metrics.largeCollapsed.width, height: isExpanded ? metrics.largeExpandedBaseHeight + guidanceHeight : metrics.largeCollapsed.height)
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
@@ -16,16 +16,17 @@ final class LargeQuotaView: QuotaView {
     override func expansionDidChange() { rebuildGuidance() }
     override func connectionStateDidChange() { rebuildGuidance() }
     override func draw(_ dirtyRect: NSRect) {
+        let scale = metrics.scale
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
         NSColor(white: 0.14, alpha: 0.97).setFill(); card.fill()
         NSColor.white.withAlphaComponent(0.11).setStroke(); card.lineWidth = 1; card.stroke()
-        label(showUsed ? "已用额度" : "剩余额度", x: 16, y: 16, size: 12, weight: .semibold, color: .secondaryLabelColor)
-        ring(snapshot?.fiveHour, at: CGPoint(x: 80, y: 77), title: "5 小时", radius: 28)
-        ring(snapshot?.week, at: CGPoint(x: 200, y: 77), title: "一周", radius: 28)
+        label(showUsed ? "已用额度" : "剩余额度", x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
+        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: "5 小时", radius: metrics.largeRingRadius)
+        ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: "一周", radius: metrics.largeRingRadius)
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {
             QuotaLevel.caution.color.withAlphaComponent(0.7).setFill()
-            NSBezierPath(ovalIn: NSRect(x: 258, y: 21, width: 5, height: 5)).fill()
+            NSBezierPath(ovalIn: NSRect(x: 258 * scale, y: 21 * scale, width: 5 * scale, height: 5 * scale)).fill()
         }
         let status: String
         switch connectionState {
@@ -35,29 +36,29 @@ final class LargeQuotaView: QuotaView {
         case .locating where snapshot == nil: status = "正在查找 Codex…"
         default: status = snapshot == nil ? "正在读取额度…" : stale ? "数据可能已过期" : "每 30 秒自动更新"
         }
-        label(status, x: 16, y: 148, size: 10.5, color: .secondaryLabelColor)
+        label(status, x: 16 * scale, y: 148 * scale, size: 10.5 * scale, color: .secondaryLabelColor)
         let chevron = NSBezierPath()
-        chevron.move(to: NSPoint(x: 254, y: isExpanded ? 156 : 152))
-        chevron.line(to: NSPoint(x: 258, y: isExpanded ? 152 : 156))
-        chevron.line(to: NSPoint(x: 262, y: isExpanded ? 156 : 152))
-        NSColor.secondaryLabelColor.setStroke(); chevron.lineWidth = 1.5; chevron.lineCapStyle = .round; chevron.lineJoinStyle = .round; chevron.stroke()
+        chevron.move(to: NSPoint(x: 254 * scale, y: (isExpanded ? 156 : 152) * scale))
+        chevron.line(to: NSPoint(x: 258 * scale, y: (isExpanded ? 152 : 156) * scale))
+        chevron.line(to: NSPoint(x: 262 * scale, y: (isExpanded ? 156 : 152) * scale))
+        NSColor.secondaryLabelColor.setStroke(); chevron.lineWidth = 1.5 * scale; chevron.lineCapStyle = .round; chevron.lineJoinStyle = .round; chevron.stroke()
         if isExpanded {
             NSColor.white.withAlphaComponent(0.09).setFill()
-            NSRect(x: 1, y: 173, width: bounds.width-2, height: 0.5).fill()
+            NSRect(x: 1, y: metrics.largeCollapsed.height - scale, width: bounds.width-2, height: 0.5 * scale).fill()
             for (index, item) in [("5 小时", snapshot?.fiveHour, forecasts.fiveHour), ("一周", snapshot?.week, forecasts.week)].enumerated() {
-                let y = CGFloat(191 + index * 66)
-                label(item.0, x: 16, y: y, size: 13, weight: .medium)
+                let y = CGFloat(191 + index * 66) * scale
+                label(item.0, x: 16 * scale, y: y, size: 13 * scale, weight: .medium)
                 let value = showUsed ? item.1?.clampedUsedPercent : item.1?.remainingPercent
-                label(value.map { "\(Int($0.rounded()))%" } ?? "—", x: 212, y: y, size: 13, weight: .semibold, color: stale ? .tertiaryLabelColor : .labelColor)
-                label(item.1?.resetDescription() ?? "重置时间暂不可用", x: 16, y: y + 23, size: 10.5, color: .secondaryLabelColor)
+                label(value.map { "\(Int($0.rounded()))%" } ?? "—", x: 212 * scale, y: y, size: 13 * scale, weight: .semibold, color: stale ? .tertiaryLabelColor : .labelColor)
+                label(item.1?.resetDescription() ?? "重置时间暂不可用", x: 16 * scale, y: y + 23 * scale, size: 10.5 * scale, color: .secondaryLabelColor)
                 if index == 0 {
-                    label(forecastText(item.2), x: 16, y: y + 41, size: 10.5, weight: .medium, color: .secondaryLabelColor)
+                    label(forecastText(item.2), x: 16 * scale, y: y + 41 * scale, size: 10.5 * scale, weight: .medium, color: .secondaryLabelColor)
                 }
             }
             QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
-                                    in: NSRect(x: 16, y: 322, width: 248, height: 96))
+                                    in: NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale))
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16, y: 432, size: 10, color: .secondaryLabelColor)
+            label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16 * scale, y: 432 * scale, size: 10 * scale, color: .secondaryLabelColor)
         }
     }
     private var guidanceTitle: String? {
@@ -71,7 +72,8 @@ final class LargeQuotaView: QuotaView {
         guard isExpanded, let title = guidanceTitle else { return }
         let button = NSButton(title: title, target: self, action: #selector(installCodex))
         button.bezelStyle = .rounded; button.controlSize = .small
-        button.frame = NSRect(x: 16, y: Self.expandedBaseHeight + 4, width: 104, height: 28)
+        let scale = metrics.scale
+        button.frame = NSRect(x: 16 * scale, y: metrics.largeExpandedBaseHeight + 4 * scale, width: 104 * scale, height: 28 * scale)
         addSubview(button); guidanceButton = button
     }
     @objc private func installCodex() { onInstallCodex?() }
