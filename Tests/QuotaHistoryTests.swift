@@ -35,22 +35,21 @@ import Foundation
         _ = session.record(snapshot(-50, .infinity, .nan))
         precondition(session.samples(at: clock).count == 3, "future and fully non-finite samples must be rejected")
 
-        _ = session.setRetention(.local24Hours, at: clock)
+        _ = session.setRetention(.local5Hours, at: clock)
         precondition(FileManager.default.fileExists(atPath: file.path), "opt-in history must persist atomically")
-        clock = base.addingTimeInterval(23 * 3_600)
-        _ = session.record(snapshot(22 * 3_600, 40, 50))
+        clock = base.addingTimeInterval(4 * 3_600)
+        _ = session.record(snapshot(3 * 3_600, 40, 50))
         precondition(session.samples(at: clock).count == 4)
-        clock = base.addingTimeInterval(25 * 3_600)
-        precondition(session.samples(at: clock).map(\.timestamp) == [base.addingTimeInterval(22 * 3_600)])
+        clock = base.addingTimeInterval(6 * 3_600)
+        precondition(session.samples(at: clock).map(\.timestamp) == [base.addingTimeInterval(3 * 3_600)])
 
-        let reloaded = QuotaHistoryStore(retention: .local24Hours, fileURL: file, now: { clock })
+        let reloaded = QuotaHistoryStore(retention: .local5Hours, fileURL: file, now: { clock })
         precondition(reloaded.samples(at: clock) == session.samples(at: clock), "persistent history must reload")
-        _ = reloaded.setRetention(.local7Days, at: clock)
-        clock = base.addingTimeInterval(8 * 86_400 + 1)
-        precondition(reloaded.samples(at: clock).isEmpty, "seven-day retention must prune from the current clock")
+        clock = base.addingTimeInterval(9 * 3_600 + 1)
+        precondition(reloaded.samples(at: clock).isEmpty, "five-hour retention must prune from the current clock")
 
         try Data("{broken".utf8).write(to: file)
-        let recovered = QuotaHistoryStore(retention: .local7Days, fileURL: file, now: { clock })
+        let recovered = QuotaHistoryStore(retention: .local5Hours, fileURL: file, now: { clock })
         precondition(recovered.samples(at: clock).isEmpty && !FileManager.default.fileExists(atPath: file.path))
         precondition(recovered.persistenceError != nil, "corrupt history recovery should be non-blocking and observable")
 
@@ -62,9 +61,9 @@ import Foundation
 
         let pruneFile = root.appendingPathComponent("prune-history.json")
         var pruneClock = base
-        let pruning = QuotaHistoryStore(retention: .local24Hours, fileURL: pruneFile, now: { pruneClock })
+        let pruning = QuotaHistoryStore(retention: .local5Hours, fileURL: pruneFile, now: { pruneClock })
         _ = pruning.record(snapshot(0, 25, 35))
-        pruneClock = base.addingTimeInterval(25 * 3_600)
+        pruneClock = base.addingTimeInterval(6 * 3_600)
         precondition(pruning.samples(at: pruneClock).isEmpty)
         let persistedAfterPrune = try JSONDecoder().decode([QuotaHistorySample].self, from: Data(contentsOf: pruneFile))
         precondition(persistedAfterPrune.isEmpty, "read-time pruning must also remove expired records from disk")

@@ -3,7 +3,7 @@ import AppKit
 final class WidgetMenu: NSObject {
     var preferences: WidgetPreferences
     var onChange: ((WidgetPreferences) -> Void)?
-    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), history(HistoryRetention) }
+    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), theme(WidgetRingTheme), history(HistoryRetention) }
     init(preferences: WidgetPreferences) { self.preferences = preferences }
 
     func makeMenu() -> NSMenu {
@@ -23,7 +23,8 @@ final class WidgetMenu: NSObject {
         group("显示范围", choices: [("聚焦 Codex 时显示", .scope(.focusCodex), preferences.displayScope == .focusCodex), ("一直显示", .scope(.always), preferences.displayScope == .always), ("聚焦桌面时显示", .scope(.focusDesktop), preferences.displayScope == .focusDesktop)])
         group("透明度", choices: [("不透明", .opacity(.opaque), preferences.opacityPreset == .opaque), ("半透明", .opacity(.translucent), preferences.opacityPreset == .translucent), ("轻透", .opacity(.light), preferences.opacityPreset == .light)])
         group("紧凑度", choices: [("标准", .density(.standard), preferences.densityPreset == .standard), ("紧凑", .density(.compact), preferences.densityPreset == .compact), ("极简", .density(.minimal), preferences.densityPreset == .minimal)])
-        group("趋势记录", choices: [("仅本次 · 30 分钟", .history(.session30Minutes), preferences.historyRetention == .session30Minutes), ("保留 24 小时", .history(.local24Hours), preferences.historyRetention == .local24Hours), ("保留 7 天", .history(.local7Days), preferences.historyRetention == .local7Days)])
+        group("环形配色", choices: [("额度状态", .theme(.semantic), preferences.ringTheme == .semantic), ("石墨", .theme(.graphite), preferences.ringTheme == .graphite), ("暖色", .theme(.warm), preferences.ringTheme == .warm), ("系统强调色", .theme(.systemAccent), preferences.ringTheme == .systemAccent)])
+        group("趋势记录", choices: [("仅本次 · 30 分钟", .history(.session30Minutes), preferences.historyRetention == .session30Minutes), ("保留 5 小时", .history(.local5Hours), preferences.historyRetention == .local5Hours)])
         return menu
     }
     @objc private func selectChoice(_ sender: NSMenuItem) {
@@ -34,6 +35,7 @@ final class WidgetMenu: NSObject {
         case .scope(let scope): preferences.displayScope = scope
         case .opacity(let opacity): preferences.opacityPreset = opacity
         case .density(let density): preferences.densityPreset = density
+        case .theme(let theme): preferences.ringTheme = theme
         case .history(let retention): preferences.historyRetention = retention
         }
         onChange?(preferences)

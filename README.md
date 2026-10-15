@@ -19,9 +19,15 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 - Large card, compact vertical rings, and compact horizontal rings.
 - Show when Codex is focused by default, always show, or show on a clear Finder desktop.
 - Native AppKit UI, 30-second quota updates, reset countdowns, and no manual refresh button.
-- Conservative five-hour forecasts after at least six samples across ten minutes. While collecting, the widget says a forecast is coming. It compares rolling, recent robust, and recent end-to-end use rates before estimating. It labels accepted estimates with a colored **Confidence: High / Medium / Low** dot; a large rate disagreement is shown as unstable instead of a misleading time. Estimates after reset are shown as “Will not run out this window”. Weekly quota is never given a depletion-time forecast.
+- A quiet local spike indicator when the last five minutes of consumption is materially faster than the earlier rolling rate, plus a gold emphasis during the final 15 minutes before the five-hour reset. Neither feature sends notifications or stores usage events.
+- Ring palettes: semantic quota status, graphite, warm, or the macOS system accent color.
+- Shows the real number of saved Codex reset credits as **Available reset cards × N** in the expanded card and menu. A positive balance uses warm gold; unavailable data is simply omitted.
+- Five-hour forecasts continuously collect the latest 30 minutes of samples in the current quota window. Once usage changes, the rate is **total observed consumption ÷ actual elapsed time**, so short flat stretches do not reset the estimate to “collecting”. Before the first valid prediction sample, the widget says “Collecting; forecast will start shortly”; once sampling begins it stays quiet until an estimate is ready. A depletion forecast is shown as a plausible range such as “Around 14:20–14:45”, with a wider range for lower confidence. Confidence rises from Low to Medium and High with a longer observed span and more samples. Estimates after reset are shown as “Will not run out this window”. Weekly quota is never given a depletion-time forecast.
+- Expanded details show the active five-hour prediction sample count.
 - A reset-aware trend chart for the five-hour quota window.
+- Hover the five-hour trend to inspect the nearest sample’s used percentage, timestamp, and consumption rate. Reset discontinuities never receive a made-up rate.
 - Remaining quota colors: sage above 50%, warm gold at 20–50%, and terracotta below 20%.
+- When the five-hour remaining quota falls below 20%, the widget automatically uses a nearly opaque, higher-contrast surface until it recovers.
 - Drag-end-only Codex snapping: dropping the widget within 28 points of a Codex edge places it with an 8-point gap, then avoids visible ordinary windows and the Dock-safe screen frame. It never follows Codex continuously.
 - Hover over the widget for 350 ms to open its full detail card; it closes 250 ms after the pointer has left both the widget and detail. Clicking keeps the detail pinned.
 
@@ -38,17 +44,20 @@ The Simplified Chinese menu offers:
 | 显示范围 | 聚焦 Codex 时显示 / 一直显示 / 聚焦桌面时显示 |
 | 透明度 | 不透明（0.97）/ 半透明（0.82）/ 轻透（0.68） |
 | 紧凑度 | 标准（100%）/ 紧凑（88%）/ 极简（76%） |
-| 趋势记录 | 仅本次 · 30 分钟 / 保留 24 小时 / 保留 7 天 |
+| 环形配色 | 额度状态 / 石墨 / 暖色 / 系统强调色 |
+| 趋势记录 | 仅本次 · 30 分钟 / 保留 5 小时 |
 
 ## Privacy
 
-The default mode keeps only the latest **30 minutes** in memory and writes no trend file. Choosing **24 hours** or **7 days** explicitly stores timestamp and the two used percentages at:
+The default mode keeps only the latest **30 minutes** in memory and writes no trend file. Choosing **5 hours** explicitly stores timestamp and the two used percentages at:
 
 `~/Library/Application Support/Quota Rings/quota-history.json`
 
 Switching back to the 30-minute session mode immediately deletes that file. Account data, credentials, and raw protocol messages are never written into quota history.
 
 Quota Rings communicates only with the local Codex app-server child process over stdio. It makes no separate network requests. Codex may use its existing authentication and network connection to retrieve account limits.
+
+Reset-card availability is read from that same local quota response and is never stored in trend history.
 
 Quota Rings does not read Codex task/session state, display task activity, navigate Codex, send notifications, or make weekly depletion predictions.
 

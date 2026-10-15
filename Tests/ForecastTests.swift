@@ -13,14 +13,23 @@ import Foundation
         let start = Date(timeIntervalSince1970: 1_700_000_000)
 
         var depletionEngine = QuotaForecastEngine()
+        precondition(!depletionEngine.hasFiveHourSampleData, "FAIL: a new forecast engine must not claim sample data")
+        precondition(depletionEngine.fiveHourSampleCount == 0, "FAIL: a new forecast engine must start with no samples")
         var depletion: QuotaForecast = .collecting
         for minute in 0...10 {
             depletion = depletionEngine.record(snapshot(used: 10 + Double(minute), reset: start.addingTimeInterval(10_800).timeIntervalSince1970,
                                                        at: start.addingTimeInterval(Double(minute) * 60))).fiveHour
         }
+        precondition(depletionEngine.hasFiveHourSampleData, "FAIL: a valid quota reading must start forecast sampling")
+        precondition(depletionEngine.fiveHourSampleCount == 11, "FAIL: the engine must expose the active-window sample count")
         guard case let .depletedAt(date) = depletion.outcome,
               abs(date.timeIntervalSince(start) - 5_400) < 1 else {
             fatalError("FAIL: positive recent use must predict depletion before reset")
+        }
+        guard let depletionRange = depletion.depletionRange,
+              depletionRange.start < date,
+              depletionRange.end > date else {
+            fatalError("FAIL: a depletion forecast must expose an interval around its nominal time")
         }
 
         var resetEngine = QuotaForecastEngine()
@@ -31,6 +40,7 @@ import Foundation
                                                        at: start.addingTimeInterval(Double(minute) * 60))).fiveHour
         }
         precondition(afterReset.outcome == .willNotDeplete, "FAIL: predicted depletion after reset must not claim a time")
+        precondition(afterReset.depletionRange == nil, "FAIL: a reset-bounded forecast must not expose a depletion interval")
 
         var idleEngine = QuotaForecastEngine()
         var idleForecast: QuotaForecast = .collecting
@@ -39,6 +49,19 @@ import Foundation
                                                        at: start.addingTimeInterval(Double(minute) * 60))).fiveHour
         }
         precondition(idleForecast.outcome == .collecting, "FAIL: flat usage must stay in collecting state")
+
+        var sparseUseEngine = QuotaForecastEngine()
+        var sparseUse: QuotaForecast = .collecting
+        for minute in 0...20 {
+            let used = minute < 10 ? 10.0 : 12.0
+            sparseUse = sparseUseEngine.record(snapshot(used: used, reset: start.addingTimeInterval(200_000).timeIntervalSince1970,
+                                                        at: start.addingTimeInterval(Double(minute) * 60))).fiveHour
+        }
+        guard case .depletedAt = sparseUse.outcome else {
+            fatalError("FAIL: observed 30-minute consumption must predict even when the latest samples are flat")
+        }
+        precondition(sparseUse.confidence == .high,
+                     "FAIL: a long continuous observation must gain high confidence even when its newest samples are flat")
 
         var boundaryEngine = QuotaForecastEngine()
         for minute in 0...10 {
@@ -56,25 +79,30 @@ import Foundation
             fetchedAt: start
         )).fiveHour
         precondition(missing.outcome == .collecting, "FAIL: missing quota percent must not produce a forecast")
+        precondition(!missingEngine.hasFiveHourSampleData, "FAIL: missing quota percent must not count as forecast sampling")
 
         var duplicateEngine = QuotaForecastEngine()
+        var beforeDuplicate: QuotaForecast = .collecting
         for minute in 0...9 {
-            _ = duplicateEngine.record(snapshot(used: 10 + Double(minute), reset: start.addingTimeInterval(10_800).timeIntervalSince1970,
-                                               at: start.addingTimeInterval(Double(minute) * 60)))
+            beforeDuplicate = duplicateEngine.record(snapshot(used: 10 + Double(minute), reset: start.addingTimeInterval(10_800).timeIntervalSince1970,
+                                                               at: start.addingTimeInterval(Double(minute) * 60))).fiveHour
         }
         let duplicate = duplicateEngine.record(snapshot(used: 19, reset: start.addingTimeInterval(10_800).timeIntervalSince1970,
                                                         at: start.addingTimeInterval(540))).fiveHour
-        precondition(duplicate.outcome == .collecting, "FAIL: retrying a stale snapshot must not create an extra forecast sample")
+        precondition(duplicate == beforeDuplicate, "FAIL: retrying a stale snapshot must not create an extra forecast sample")
 
-        var unstableEngine = QuotaForecastEngine()
-        var unstable: QuotaForecast = .collecting
+        var variableRateEngine = QuotaForecastEngine()
+        var variableRate: QuotaForecast = .collecting
         for minute in 0...10 {
             let used = minute == 10 ? 40.0 : 10 + Double(minute)
-            unstable = unstableEngine.record(snapshot(used: used, reset: start.addingTimeInterval(7_200).timeIntervalSince1970,
-                                                       at: start.addingTimeInterval(Double(minute) * 60))).fiveHour
+            variableRate = variableRateEngine.record(snapshot(used: used, reset: start.addingTimeInterval(7_200).timeIntervalSince1970,
+                                                              at: start.addingTimeInterval(Double(minute) * 60))).fiveHour
         }
-        precondition(unstable.outcome == .unstable,
-                     "FAIL: a recent spike that disagrees with the stable rate must suppress a depletion time")
+        guard case .depletedAt = variableRate.outcome else {
+            fatalError("FAIL: varying consumption must still use total consumption divided by observed time")
+        }
+        precondition(variableRate.confidence == .low,
+                     "FAIL: short observations must remain low confidence even when they include a large change")
 
         func forecast(samples: Int, minutes: Int, wobble: Double) -> QuotaForecast {
             var engine = QuotaForecastEngine()
@@ -90,9 +118,9 @@ import Foundation
         precondition(forecast(samples: 21, minutes: 20, wobble: 0).confidence == .high,
                      "FAIL: 12+ samples over 20 minutes with <=15% difference must be high confidence")
         precondition(forecast(samples: 16, minutes: 15, wobble: 0).confidence == .medium,
-                     "FAIL: 8+ samples over 15 minutes with <=25% difference must be medium confidence")
+                     "FAIL: 8+ samples over 15 minutes must be medium confidence")
         precondition(forecast(samples: 11, minutes: 10, wobble: 0).confidence == .low,
-                     "FAIL: 6+ samples over 10 minutes with <=35% difference must be low confidence")
+                     "FAIL: observations below 15 minutes must be low confidence")
 
         var weekEngine = QuotaForecastEngine()
         var weekly = QuotaForecasts.collecting

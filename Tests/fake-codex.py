@@ -11,7 +11,7 @@ def emit(message):
     sys.stdout.write(line[9:]); sys.stdout.flush()
 
 def limits(used):
-    return {'rateLimitsByLimitId': {'codex': {
+    return {'rateLimitResetCredits': {'availableCount': 2}, 'rateLimitsByLimitId': {'codex': {
         'primary': {'usedPercent': used, 'windowDurationMins': 300, 'resetsAt': 2000000000},
         'secondary': {'usedPercent': 76, 'windowDurationMins': 10080, 'resetsAt': 2000000000}}}}
 

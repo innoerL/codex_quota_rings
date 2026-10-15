@@ -2,14 +2,12 @@ import Foundation
 
 enum HistoryRetention: String, CaseIterable {
     case session30Minutes
-    case local24Hours
-    case local7Days
+    case local5Hours
 
     var duration: TimeInterval {
         switch self {
         case .session30Minutes: return 30 * 60
-        case .local24Hours: return 24 * 60 * 60
-        case .local7Days: return 7 * 24 * 60 * 60
+        case .local5Hours: return 5 * 60 * 60
         }
     }
 

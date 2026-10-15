@@ -31,6 +31,11 @@ struct QuotaWindow: Decodable {
         let format = DateFormatter(); format.dateFormat = "M/d HH:mm"
         return "\(Self.resetCountdown(seconds: reset.timeIntervalSince(now))) · \(format.string(from: reset))"
     }
+    func isResetImminent(at now: Date = Date(), threshold: TimeInterval = 15 * 60) -> Bool {
+        guard let resetsAt, resetsAt.isFinite else { return false }
+        let remaining = resetsAt - now.timeIntervalSince1970
+        return remaining > 0 && remaining <= threshold
+    }
 }
 
 private struct QuotaBucket: Decodable {
@@ -38,15 +43,27 @@ private struct QuotaBucket: Decodable {
     let primary: QuotaWindow?
     let secondary: QuotaWindow?
 }
+private struct QuotaResetCredits: Decodable {
+    let availableCount: Int?
+}
 private struct QuotaResponse: Decodable {
     let rateLimits: QuotaBucket?
     let rateLimitsByLimitId: [String: QuotaBucket]?
+    let rateLimitResetCredits: QuotaResetCredits?
 }
 
 struct QuotaSnapshot {
     let fiveHour: QuotaWindow?
     let week: QuotaWindow?
+    /// Saved one-time quota resets reported by the local Codex app-server.
+    let resetCreditCount: Int?
     let fetchedAt: Date
+    init(fiveHour: QuotaWindow?, week: QuotaWindow?, resetCreditCount: Int? = nil, fetchedAt: Date) {
+        self.fiveHour = fiveHour
+        self.week = week
+        self.resetCreditCount = resetCreditCount
+        self.fetchedAt = fetchedAt
+    }
     static func decode(_ data: Data, at date: Date = Date()) throws -> QuotaSnapshot {
         let response = try JSONDecoder().decode(QuotaResponse.self, from: data)
         let bucket: QuotaBucket?
@@ -57,7 +74,9 @@ struct QuotaSnapshot {
         } else { bucket = nil }
         let windows = [bucket?.primary, bucket?.secondary].compactMap { $0 }
         return QuotaSnapshot(fiveHour: windows.first { $0.windowDurationMins == 300 },
-                             week: windows.first { $0.windowDurationMins == 10080 }, fetchedAt: date)
+                             week: windows.first { $0.windowDurationMins == 10080 },
+                             resetCreditCount: response.rateLimitResetCredits?.availableCount.map { max(0, $0) },
+                             fetchedAt: date)
     }
     func isStale(at date: Date = Date()) -> Bool { date.timeIntervalSince(fetchedAt) > 90 }
 }

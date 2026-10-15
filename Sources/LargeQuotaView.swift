@@ -10,18 +10,41 @@ final class LargeQuotaView: QuotaView {
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
+    var forecastSampleCount = 0 { didSet { needsDisplay = true } }
     var onInstallCodex: (() -> Void)?
     private var guidanceButton: NSButton?
+    private var trendHover: QuotaTrendHover? { didSet { needsDisplay = true } }
+    private var trendTracking: NSTrackingArea?
 
     override func expansionDidChange() { rebuildGuidance() }
     override func connectionStateDidChange() { rebuildGuidance() }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trendTracking { removeTrackingArea(trendTracking) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        trendTracking = area
+    }
+    override func mouseMoved(with event: NSEvent) {
+        guard isExpanded else { trendHover = nil; return }
+        let scale = metrics.scale
+        let trendRect = NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale)
+        let chart = QuotaTrendRenderer.chartRect(in: trendRect)
+        let location = convert(event.locationInWindow, from: nil)
+        guard chart.contains(location) else { trendHover = nil; return }
+        trendHover = QuotaTrendInteraction.nearestSample(at: (location.x - chart.minX) / max(chart.width, 1), in: historySamples)
+    }
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        trendHover = nil
+    }
     override func draw(_ dirtyRect: NSRect) {
         let scale = metrics.scale
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
-        NSColor(white: 0.14, alpha: 0.97).setFill(); card.fill()
-        NSColor.white.withAlphaComponent(0.11).setStroke(); card.lineWidth = 1; card.stroke()
+        NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.97).setFill(); card.fill()
+        NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.11).setStroke(); card.lineWidth = 1; card.stroke()
         label(showUsed ? "已用额度" : "剩余额度", x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
-        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: "5 小时", radius: metrics.largeRingRadius)
+        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: "5 小时", radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true)
         ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: "一周", radius: metrics.largeRingRadius)
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {
@@ -29,14 +52,23 @@ final class LargeQuotaView: QuotaView {
             NSBezierPath(ovalIn: NSRect(x: 258 * scale, y: 21 * scale, width: 5 * scale, height: 5 * scale)).fill()
         }
         let status: String
+        let statusColor: NSColor
         switch connectionState {
-        case .codexNotInstalled: status = "未找到 Codex"
-        case .authenticationRequired: status = "请先在 Codex 中登录"
-        case .disconnected: status = "连接中断 · 自动重试"
-        case .locating where snapshot == nil: status = "正在查找 Codex…"
-        default: status = snapshot == nil ? "正在读取额度…" : stale ? "数据可能已过期" : "每 30 秒自动更新"
+        case .codexNotInstalled: status = "未找到 Codex"; statusColor = .secondaryLabelColor
+        case .authenticationRequired: status = "请先在 Codex 中登录"; statusColor = .secondaryLabelColor
+        case .disconnected: status = "连接中断 · 自动重试"; statusColor = .secondaryLabelColor
+        case .locating where snapshot == nil: status = "正在查找 Codex…"; statusColor = .secondaryLabelColor
+        default:
+            if usageAlert == .spike {
+                status = "用量突然升高"; statusColor = QuotaLevel.low.color
+            } else if snapshot?.fiveHour?.isResetImminent() == true {
+                status = "5 小时额度即将重置"; statusColor = QuotaLevel.caution.color
+            } else {
+                status = snapshot == nil ? "正在读取额度…" : stale ? "数据可能已过期" : "每 30 秒自动更新"
+                statusColor = .secondaryLabelColor
+            }
         }
-        label(status, x: 16 * scale, y: 148 * scale, size: 10.5 * scale, color: .secondaryLabelColor)
+        label(status, x: 16 * scale, y: 148 * scale, size: 10.5 * scale, weight: usageAlert == .spike ? .medium : .regular, color: statusColor)
         let chevron = NSBezierPath()
         chevron.move(to: NSPoint(x: 254 * scale, y: (isExpanded ? 156 : 152) * scale))
         chevron.line(to: NSPoint(x: 258 * scale, y: (isExpanded ? 152 : 156) * scale))
@@ -50,15 +82,28 @@ final class LargeQuotaView: QuotaView {
                 label(item.0, x: 16 * scale, y: y, size: 13 * scale, weight: .medium)
                 let value = showUsed ? item.1?.clampedUsedPercent : item.1?.remainingPercent
                 label(value.map { "\(Int($0.rounded()))%" } ?? "—", x: 212 * scale, y: y, size: 13 * scale, weight: .semibold, color: stale ? .tertiaryLabelColor : .labelColor)
-                label(item.1?.resetDescription() ?? "重置时间暂不可用", x: 16 * scale, y: y + 23 * scale, size: 10.5 * scale, color: .secondaryLabelColor)
+                let resetImminent = index == 0 && item.1?.isResetImminent() == true
+                label(item.1?.resetDescription() ?? "重置时间暂不可用", x: 16 * scale, y: y + 23 * scale, size: 10.5 * scale, weight: resetImminent ? .medium : .regular, color: resetImminent ? QuotaLevel.caution.color : .secondaryLabelColor)
                 if index == 0 {
                     label(forecastText(item.2), x: 16 * scale, y: y + 41 * scale, size: 10.5 * scale, weight: .medium, color: forecastColor(item.2))
                 }
             }
-            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
-                                    in: NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale))
+            if let resetCreditCount = snapshot?.resetCreditCount {
+                let hasCredits = resetCreditCount > 0
+                label("可用重置卡 × \(resetCreditCount)", x: 16 * scale, y: 294 * scale, size: 10.5 * scale,
+                      weight: hasCredits ? .semibold : .regular,
+                      color: hasCredits ? QuotaLevel.caution.color : .secondaryLabelColor)
+            }
+            let trendRect = NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale)
+            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention, in: trendRect)
+            if let trendHover, let range = QuotaTrendRenderer.timeRange(for: historySamples) {
+                let span = range.end.timeIntervalSince(range.start)
+                let position = span > 0 ? trendHover.sample.timestamp.timeIntervalSince(range.start) / span : 0
+                QuotaTrendRenderer.drawHover(trendHover, position: position, in: trendRect)
+            }
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            label(snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt))" } ?? "等待额度数据", x: 16 * scale, y: 432 * scale, size: 10 * scale, color: .secondaryLabelColor)
+            let footer = snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt)) · 预测采样 \(forecastSampleCount) 个" } ?? "等待额度数据"
+            label(footer, x: 16 * scale, y: 432 * scale, size: 10 * scale, color: .secondaryLabelColor)
         }
     }
     private var guidanceTitle: String? {

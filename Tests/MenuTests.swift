@@ -7,7 +7,7 @@ import AppKit
         var last: WidgetPreferences?
         controller.onChange = { last = $0 }
         let menu = controller.makeMenu()
-        precondition(menu.items.count == 6)
+        precondition(menu.items.count == 7)
         precondition(menu.items[2].submenu!.items.map(\.title) == ["聚焦 Codex 时显示", "一直显示", "聚焦桌面时显示"])
         precondition(menu.items[2].submenu!.items[0].state == .on)
         precondition(menu.items[3].title == "透明度")
@@ -16,9 +16,12 @@ import AppKit
         precondition(menu.items[4].title == "紧凑度")
         precondition(menu.items[4].submenu!.items.map(\.title) == ["标准", "紧凑", "极简"])
         precondition(menu.items[4].submenu!.items[0].state == .on)
-        precondition(menu.items[5].title == "趋势记录")
-        precondition(menu.items[5].submenu!.items.map(\.title) == ["仅本次 · 30 分钟", "保留 24 小时", "保留 7 天"])
+        precondition(menu.items[5].title == "环形配色")
+        precondition(menu.items[5].submenu!.items.map(\.title) == ["额度状态", "石墨", "暖色", "系统强调色"])
         precondition(menu.items[5].submenu!.items[0].state == .on)
+        precondition(menu.items[6].title == "趋势记录")
+        precondition(menu.items[6].submenu!.items.map(\.title) == ["仅本次 · 30 分钟", "保留 5 小时"])
+        precondition(menu.items[6].submenu!.items[0].state == .on)
         let desktop = menu.items[2].submenu!.items[2]
         NSApp.sendAction(desktop.action!, to: desktop.target, from: desktop)
         precondition(last?.displayScope == .focusDesktop && last?.size == .small)
@@ -32,13 +35,17 @@ import AppKit
         let minimal = controller.makeMenu().items[4].submenu!.items[2]
         NSApp.sendAction(minimal.action!, to: minimal.target, from: minimal)
         precondition(last?.densityPreset == .minimal && last?.opacityPreset == .translucent)
-        let sevenDays = controller.makeMenu().items[5].submenu!.items[2]
-        NSApp.sendAction(sevenDays.action!, to: sevenDays.target, from: sevenDays)
-        precondition(last?.historyRetention == .local7Days && last?.size == .large
+        let warm = controller.makeMenu().items[5].submenu!.items[2]
+        NSApp.sendAction(warm.action!, to: warm.target, from: warm)
+        precondition(last?.ringTheme == .warm && last?.densityPreset == .minimal)
+        let fiveHours = controller.makeMenu().items[6].submenu!.items[1]
+        NSApp.sendAction(fiveHours.action!, to: fiveHours.target, from: fiveHours)
+        precondition(last?.historyRetention == .local5Hours && last?.size == .large
                      && last?.displayScope == .focusDesktop)
         precondition(controller.makeMenu().items[3].submenu!.items.map(\.state) == [.off, .on, .off])
         precondition(controller.makeMenu().items[4].submenu!.items.map(\.state) == [.off, .off, .on])
-        precondition(controller.makeMenu().items[5].submenu!.items.map(\.state) == [.off, .off, .on])
-        print("PASS: menu checkmarks, scope, appearance and history selection, independent changes and disabled orientation")
+        precondition(controller.makeMenu().items[5].submenu!.items.map(\.state) == [.off, .off, .on, .off])
+        precondition(controller.makeMenu().items[6].submenu!.items.map(\.state) == [.off, .on])
+        print("PASS: menu checkmarks, scope, appearance, theme and history selection, independent changes and disabled orientation")
     }
 }

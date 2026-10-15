@@ -1,31 +1,24 @@
 import AppKit
 
-extension QuotaLevel {
-    var color: NSColor {
-        switch self {
-        case .ample: return NSColor(srgbRed: 143/255, green: 169/255, blue: 144/255, alpha: 1)
-        case .caution: return NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1)
-        case .low: return NSColor(srgbRed: 189/255, green: 122/255, blue: 112/255, alpha: 1)
-        case .unknown: return NSColor(white: 0.42, alpha: 1)
-        }
-    }
-}
-
 class QuotaView: NSView {
     static let preferredSize = NSSize(width: 42, height: 124)
     var smallLayout: SmallLayout = .vertical { didSet { needsDisplay = true } }
     var metrics = WidgetLayoutMetrics(density: .standard) { didSet { needsDisplay = true } }
     var contentOpacity: CGFloat = WidgetOpacityPreset.opaque.alpha { didSet { needsDisplay = true } }
+    var ringTheme: WidgetRingTheme = .semantic { didSet { needsDisplay = true } }
     private var baseContentSize: NSSize {
         smallLayout == .vertical ? metrics.smallVertical : metrics.smallHorizontal
     }
     var preferredContentSize: NSSize { baseContentSize }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
     var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
+    var hasForecastSampleData = false { didSet { needsDisplay = true; updateTooltip() } }
     var connectionError: String? { didSet { needsDisplay = true; updateTooltip() } }
     var connectionState: QuotaConnectionState = .locating { didSet { needsDisplay = true; updateTooltip(); connectionStateDidChange() } }
     func connectionStateDidChange() {}
     var showUsed = false { didSet { needsDisplay = true; updateTooltip() } }
+    var usageAlert: QuotaUsageAlert = .none { didSet { needsDisplay = true; updateTooltip() } }
+    var lowQuotaContrastMode = false { didSet { needsDisplay = true; updateTooltip() } }
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
     var onDrag: (() -> Void)?
@@ -78,10 +71,10 @@ class QuotaView: NSView {
         let measured = (string as NSString).size(withAttributes: attributes)
         (string as NSString).draw(at: CGPoint(x: center.x - measured.width / 2, y: center.y - measured.height / 2), withAttributes: attributes)
     }
-    func ring(_ quota: QuotaWindow?, at center: CGPoint, title: String, radius: CGFloat = 15) {
+    func ring(_ quota: QuotaWindow?, at center: CGPoint, title: String, radius: CGFloat = 15, resetEmphasis: Bool = false) {
         let scale = radius / 15
         let track = NSBezierPath(ovalIn: NSRect(x: center.x-radius, y: center.y-radius, width: radius*2, height: radius*2))
-        NSColor.white.withAlphaComponent(0.10).setStroke(); track.lineWidth = 1.8 * scale; track.stroke()
+        NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.19 : 0.10).setStroke(); track.lineWidth = 1.8 * scale; track.stroke()
         let value = showUsed ? quota?.clampedUsedPercent : quota?.remainingPercent
         let outdated = connectionError != nil || snapshot?.isStale() == true
         if let value, value > 0 {
@@ -92,16 +85,16 @@ class QuotaView: NSView {
                 let point = CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
                 if step == 0 { arc.move(to: point) } else { arc.line(to: point) }
             }
-            (outdated ? QuotaLevel.unknown : quota?.level ?? .unknown).color.setStroke()
+            ringTheme.color(for: outdated ? .unknown : quota?.level ?? .unknown).setStroke()
             arc.lineWidth = 1.8 * scale; arc.lineCapStyle = .round; arc.stroke()
         } else if value == 0 && !showUsed && !outdated {
             // Keep exhausted quota visibly red even though its remaining arc is empty.
-            QuotaLevel.low.color.withAlphaComponent(0.65).setStroke(); track.stroke()
+            ringTheme.color(for: .low).withAlphaComponent(0.65).setStroke(); track.stroke()
         }
         let numeral = value.map { "\(Int($0.rounded()))" } ?? "—"
         let base = NSFont.monospacedDigitSystemFont(ofSize: 10.5 * scale, weight: .semibold)
         let rounded = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 10.5 * scale) } ?? base
-        let ink = NSColor.labelColor.withAlphaComponent(outdated ? 0.45 : 0.94)
+        let ink = NSColor.labelColor.withAlphaComponent(outdated ? 0.55 : (lowQuotaContrastMode ? 1 : 0.94))
         let label = NSMutableAttributedString(string: numeral, attributes: [.font: rounded, .foregroundColor: ink])
         if value != nil {
             label.append(NSAttributedString(string: "%", attributes: [.font: NSFont.systemFont(ofSize: 6 * scale, weight: .medium), .foregroundColor: ink.withAlphaComponent(outdated ? 0.35 : 0.65), .baselineOffset: 0.5 * scale]))
@@ -109,21 +102,29 @@ class QuotaView: NSView {
         let size = label.size()
         label.draw(at: NSPoint(x: center.x-size.width/2, y: center.y-size.height/2))
         text(title, center: CGPoint(x: center.x, y: center.y + radius + (scale > 1 ? 20 : 9)), size: scale > 1 ? 13 : 8, weight: .medium, color: NSColor.secondaryLabelColor)
-
+        if resetEmphasis {
+            QuotaLevel.caution.color.setFill()
+            let dot = max(3, 3.8 * scale)
+            NSBezierPath(ovalIn: NSRect(x: center.x + radius * 0.58, y: center.y - radius * 0.82, width: dot, height: dot)).fill()
+        }
     }
     override func draw(_ dirtyRect: NSRect) {
         // A quiet sidebar control at rest, with a subtle macOS-style hover surface.
         if hovered || isExpanded {
             let surface = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 6), xRadius: 13, yRadius: 13)
-            NSColor.white.withAlphaComponent(isExpanded ? 0.075 : 0.045).setFill(); surface.fill()
-            NSColor.white.withAlphaComponent(0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
+            NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.10 : (isExpanded ? 0.075 : 0.045)).setFill(); surface.fill()
+            NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.16 : 0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         let scale = metrics.scale
-        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: "5 小时", radius: metrics.compactRingRadius)
+        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: "5 小时", radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true)
         ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: "一周", radius: metrics.compactRingRadius)
         if connectionError != nil || snapshot?.isStale() == true {
             QuotaLevel.caution.color.setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()
+        }
+        if usageAlert == .spike {
+            QuotaLevel.low.color.setFill()
+            NSBezierPath(ovalIn: NSRect(x: bounds.maxX-5, y: bounds.minY+2, width: 3, height: 3)).fill()
         }
     }
     func updateTooltip() {
@@ -132,6 +133,9 @@ class QuotaView: NSView {
             let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm:ss"
             lines.append("更新：\(formatter.string(from: snapshot.fetchedAt))")
         }
+        if let alert = usageAlert.chineseLabel { lines.append(alert) }
+        if snapshot?.fiveHour?.isResetImminent() == true { lines.append("5 小时额度即将重置") }
+        if lowQuotaContrastMode { lines.append("低额度高对比模式已开启") }
         switch connectionState {
         case .codexNotInstalled: lines.append("未找到 Codex · 打开详情可安装")
         case .authenticationRequired: lines.append("请先在 Codex 中登录")
@@ -149,20 +153,35 @@ class QuotaView: NSView {
         setAccessibilityValue("5小时 \(values[0])，一周 \(values[1])")
     }
     func forecastText(_ forecast: QuotaForecast, at now: Date = Date()) -> String {
-        guard connectionError == nil, snapshot?.isStale(at: now) != true else { return "收集中，稍后预测" }
+        guard connectionError == nil, snapshot?.isStale(at: now) != true else {
+            return hasForecastSampleData ? "" : "收集中，稍后开始预测"
+        }
+        guard hasForecastSampleData else { return "收集中，稍后开始预测" }
         switch forecast.outcome {
-        case .collecting:
-            return "收集中，稍后预测"
+        case .collecting: return ""
         case .unstable:
             return "● 消耗速率不稳定，暂不预测"
         case .willNotDeplete:
             return "本周期内不会用尽"
         case .depletedAt(let date):
+            let confidence = forecast.confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
+            if let range = forecast.depletionRange {
+                return "● \(depletionRangeText(range, at: now)) 用尽\(confidence)"
+            }
             let format = DateFormatter()
             format.dateFormat = Calendar.current.isDate(date, inSameDayAs: now) ? "预计 HH:mm 用尽" : "预计 M/d HH:mm 用尽"
-            let confidence = forecast.confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
             return "● \(format.string(from: date))\(confidence)"
         }
+    }
+    private func depletionRangeText(_ range: DateInterval, at now: Date) -> String {
+        let format = DateFormatter()
+        let calendar = Calendar.current
+        if calendar.isDate(range.start, inSameDayAs: now), calendar.isDate(range.end, inSameDayAs: now) {
+            format.dateFormat = "HH:mm"
+            return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
+        }
+        format.dateFormat = "M/d HH:mm"
+        return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
     }
     func forecastColor(_ forecast: QuotaForecast) -> NSColor {
         switch forecast.outcome {

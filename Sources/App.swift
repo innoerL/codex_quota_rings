@@ -6,6 +6,8 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let defaults: UserDefaults
     private let historyStore: QuotaHistoryStore
     private var forecastEngine = QuotaForecastEngine()
+    private var usageAlertEngine = QuotaUsageAlertEngine()
+    private var lowQuotaContrastMode = false
     private var connectionState: QuotaConnectionState = .locating
     private let view = QuotaView(frame: NSRect(origin: .zero, size: QuotaView.preferredSize))
     private let largeView = LargeQuotaView(frame: NSRect(origin: .zero, size: LargeQuotaView.collapsedSize))
@@ -165,6 +167,13 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             for (name, window) in [("5小时", snapshot.fiveHour), ("一周", snapshot.week)] {
                 if let reset = window?.resetsAt { info("\(name)重置：\(format.string(from: Date(timeIntervalSince1970: reset)))") }
             }
+            if let resetCreditCount = snapshot.resetCreditCount {
+                let title = "可用重置卡 × \(resetCreditCount)"
+                let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                item.isEnabled = false
+                if resetCreditCount > 0 { item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: QuotaLevel.caution.color]) }
+                menu.addItem(item)
+            }
         }
         if let error = view.connectionError { info(error) }
         if let error = historyStore.persistenceError { info(error) }
@@ -237,9 +246,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func applyPresentation() {
         let metrics = WidgetLayoutMetrics(density: preferences.densityPreset)
-        let opacity = preferences.opacityPreset.alpha
-        view.metrics = metrics; view.contentOpacity = opacity
-        largeView.metrics = metrics; largeView.contentOpacity = opacity
+        let opacity = lowQuotaContrastMode ? max(preferences.opacityPreset.alpha, 0.96) : preferences.opacityPreset.alpha
+        view.metrics = metrics; view.contentOpacity = opacity; view.ringTheme = preferences.ringTheme
+        largeView.metrics = metrics; largeView.contentOpacity = opacity; largeView.ringTheme = preferences.ringTheme
         details.metrics = metrics; details.contentOpacity = opacity
         panel?.alphaValue = opacity
         detailsPanel?.alphaValue = opacity
@@ -277,14 +286,30 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func applyQuota(snapshot: QuotaSnapshot?, error: String?) {
         let forecasts = (error == nil ? snapshot.map { forecastEngine.record($0) } : nil) ?? .collecting
+        let hasForecastSampleData = error == nil && forecastEngine.hasFiveHourSampleData
+        let forecastSampleCount = error == nil ? forecastEngine.fiveHourSampleCount : 0
+        let usageAlert = (error == nil ? snapshot.map { usageAlertEngine.record($0) } : nil) ?? .none
+        let contrastMode = error == nil && snapshot?.fiveHour?.level == .low
+        if contrastMode != lowQuotaContrastMode {
+            lowQuotaContrastMode = contrastMode
+            applyPresentation()
+        }
         for target in [view as QuotaView, largeView as QuotaView] {
             target.snapshot = snapshot
             target.connectionError = error
             target.forecasts = forecasts
+            target.hasForecastSampleData = hasForecastSampleData
+            target.usageAlert = usageAlert
+            target.lowQuotaContrastMode = contrastMode
         }
+        largeView.forecastSampleCount = forecastSampleCount
         details.snapshot = snapshot
         details.connectionError = error
         details.forecasts = forecasts
+        details.hasForecastSampleData = hasForecastSampleData
+        details.forecastSampleCount = forecastSampleCount
+        details.usageAlert = usageAlert
+        details.lowQuotaContrastMode = contrastMode
         if error == nil, let snapshot, !snapshot.isStale() {
             _ = historyStore.record(snapshot)
             publishHistory()

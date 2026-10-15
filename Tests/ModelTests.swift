@@ -10,9 +10,10 @@ import Foundation
         func parse(_ text: String) throws -> QuotaSnapshot {
             try QuotaSnapshot.decode(Data(text.utf8), at: Date(timeIntervalSince1970: 1000))
         }
-        let normal = try parse(#"{"rateLimits":{"primary":{"usedPercent":80,"windowDurationMins":300},"secondary":{"usedPercent":76,"windowDurationMins":10080}}}"#)
+        let normal = try parse(#"{"rateLimits":{"primary":{"usedPercent":80,"windowDurationMins":300},"secondary":{"usedPercent":76,"windowDurationMins":10080}},"rateLimitResetCredits":{"availableCount":2}}"#)
         expect(normal.fiveHour?.remainingPercent == 20, "80% used means 20% remaining")
         expect(normal.week?.remainingPercent == 24, "weekly quota is independent")
+        expect(normal.resetCreditCount == 2, "available reset credits are decoded from the Codex rate limit response")
         expect(normal.fiveHour?.level == .caution, "20% remaining is yellow")
         expect(QuotaWindow(usedPercent: 49, windowDurationMins: 300, resetsAt: nil).level == .ample, "51% remaining is green")
         expect(QuotaWindow(usedPercent: 50, windowDurationMins: 300, resetsAt: nil).level == .caution, "50% remaining is yellow")
@@ -32,6 +33,8 @@ import Foundation
         let bounds = try parse(#"{"rateLimits":{"primary":{"usedPercent":110,"windowDurationMins":300},"secondary":{"usedPercent":0,"windowDurationMins":10080}}}"#)
         expect(bounds.fiveHour?.remainingPercent == 0, "exhausted quota clamps at zero")
         expect(bounds.week?.remainingPercent == 100, "a real zero usage remains valid")
+        let negativeCredits = try parse(#"{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":300}},"rateLimitResetCredits":{"availableCount":-2}}"#)
+        expect(negativeCredits.resetCreditCount == 0, "invalid negative reset credits clamp to zero")
         expect(normal.isStale(at: Date(timeIntervalSince1970: 1091)), "old values are stale")
         expect(!normal.isStale(at: Date(timeIntervalSince1970: 1030)), "recent values remain current")
         let short = try parse(#"{"rateLimits":{"primary":{"usedPercent":50,"windowDurationMins":15}}}"#)

@@ -8,6 +8,9 @@ import Foundation
         precondition(WidgetDensityPreset.standard.scale == 1.00)
         precondition(WidgetDensityPreset.compact.scale == 0.88)
         precondition(WidgetDensityPreset.minimal.scale == 0.76)
+        precondition(WidgetRingTheme.allCases == [.semantic, .graphite, .warm, .systemAccent])
+        precondition(!WidgetRingTheme.graphite.color(for: .ample).isEqual(WidgetRingTheme.warm.color(for: .ample)),
+                     "theme palettes must produce visibly distinct ring colors")
 
         for density in WidgetDensityPreset.allCases {
             let metrics = WidgetLayoutMetrics(density: density)

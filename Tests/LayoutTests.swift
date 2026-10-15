@@ -16,6 +16,9 @@ import AppKit
                      "minimal density must resize the compact widget without a transform")
         compact.contentOpacity = WidgetOpacityPreset.light.alpha
         precondition(compact.contentOpacity == 0.68, "compact widget must retain the selected opacity")
+        compact.lowQuotaContrastMode = true
+        precondition(compact.toolTip?.contains("低额度高对比模式") == true,
+                     "low quota mode must expose its high-contrast state to assistive text")
         let large = LargeQuotaView(frame: NSRect(origin: .zero, size: LargeQuotaView.collapsedSize))
         large.metrics = WidgetLayoutMetrics(density: .compact)
         precondition(large.preferredContentSize.width == 280 * 0.88 && large.preferredContentSize.height == 174 * 0.88,
@@ -23,20 +26,41 @@ import AppKit
         large.contentOpacity = WidgetOpacityPreset.translucent.alpha
         precondition(large.contentOpacity == 0.82, "large widget must retain the selected opacity")
         large.snapshot = sample
-        let forecasts = QuotaForecasts(fiveHour: QuotaForecast(outcome: .depletedAt(now.addingTimeInterval(3_600)), confidence: .medium), week: .collecting)
+        let forecasts = QuotaForecasts(fiveHour: QuotaForecast(
+            outcome: .depletedAt(now.addingTimeInterval(3_600)),
+            confidence: .medium,
+            depletionRange: DateInterval(start: now.addingTimeInterval(3_000), end: now.addingTimeInterval(4_500))
+        ), week: .collecting)
         large.forecasts = forecasts
+        large.forecastSampleCount = 6
         let staleCompact = QuotaView(frame: .zero)
         staleCompact.snapshot = QuotaSnapshot(fiveHour: sample.fiveHour, week: sample.week, fetchedAt: now.addingTimeInterval(-91))
         staleCompact.forecasts = forecasts
-        precondition(staleCompact.forecastText(forecasts.fiveHour, at: now) == "收集中，稍后预测",
-                     "stale quota data must suppress a confident depletion forecast")
+        staleCompact.hasForecastSampleData = true
+        precondition(staleCompact.forecastText(forecasts.fiveHour, at: now).isEmpty,
+                     "stale quota data must suppress a confident depletion forecast without showing collection text")
+        let collectingCompact = QuotaView(frame: .zero)
+        precondition(collectingCompact.forecastText(.collecting, at: now) == "收集中，稍后开始预测",
+                     "missing forecast sampling must show collection text")
+        collectingCompact.snapshot = sample
+        precondition(collectingCompact.forecastText(.collecting, at: now) == "收集中，稍后开始预测",
+                     "a quota snapshot alone must not hide the collection state")
+        collectingCompact.hasForecastSampleData = true
+        precondition(collectingCompact.forecastText(.collecting, at: now).isEmpty,
+                     "existing forecast samples must collect silently in the background")
         let confidenceView = QuotaView(frame: .zero)
         confidenceView.snapshot = sample
+        confidenceView.hasForecastSampleData = true
         for (confidence, label, color) in [(ForecastConfidence.high, "高", QuotaLevel.ample.color),
                                            (.medium, "中", QuotaLevel.caution.color),
                                            (.low, "低", QuotaLevel.low.color)] {
-            let forecast = QuotaForecast(outcome: .depletedAt(now.addingTimeInterval(3_600)), confidence: confidence)
+            let forecast = QuotaForecast(
+                outcome: .depletedAt(now.addingTimeInterval(3_600)),
+                confidence: confidence,
+                depletionRange: DateInterval(start: now.addingTimeInterval(3_000), end: now.addingTimeInterval(4_500))
+            )
             precondition(confidenceView.forecastText(forecast, at: now).contains("●")
+                         && confidenceView.forecastText(forecast, at: now).contains("约")
                          && confidenceView.forecastText(forecast, at: now).contains("可信度：\(label)"),
                          "every confidence tier must render a text label and dot")
             precondition(confidenceView.forecastColor(forecast).isEqual(color),
@@ -44,6 +68,13 @@ import AppKit
         }
         precondition(confidenceView.forecastText(.unstable, at: now) == "● 消耗速率不稳定，暂不预测",
                      "unstable usage must remain separate from low confidence")
+        let imminentSnapshot = QuotaSnapshot(fiveHour: QuotaWindow(usedPercent: 32, windowDurationMins: 300,
+                                                                     resetsAt: now.addingTimeInterval(10 * 60).timeIntervalSince1970),
+                                            week: sample.week, fetchedAt: now)
+        confidenceView.snapshot = imminentSnapshot; confidenceView.usageAlert = .spike
+        precondition(confidenceView.toolTip?.contains("用量突然升高") == true
+                     && confidenceView.toolTip?.contains("5 小时额度即将重置") == true,
+                     "compact widget accessibility text must expose both local signals")
         var clicks = 0
         large.onClick = { large.isExpanded.toggle(); clicks += 1 }
         precondition(large.accessibilityPerformPress())
@@ -84,17 +115,29 @@ import AppKit
         detail.contentOpacity = WidgetOpacityPreset.translucent.alpha
         precondition(detail.preferredContentSize.width == 246 * 0.88 && detail.contentOpacity == 0.82,
                      "detail panel must share presentation metrics and opacity")
-        detail.snapshot = sample; detail.forecasts = forecasts
+        detail.snapshot = sample; detail.forecasts = forecasts; detail.hasForecastSampleData = true; detail.forecastSampleCount = 6
         let forecastFields = detail.subviews.compactMap { $0 as? NSTextField }
-            .filter { $0.stringValue.contains("预计") }
+            .filter { $0.stringValue.contains("约") && $0.stringValue.contains("用尽") }
         precondition(forecastFields.count == 1, "only the five-hour quota should show a depletion forecast")
-        precondition(forecastFields[0].stringValue.contains("●") && forecastFields[0].stringValue.contains("可信度：中"),
-                     "a five-hour depletion forecast must include a confidence label and color dot")
+        precondition(forecastFields[0].stringValue.contains("●")
+                     && forecastFields[0].stringValue.contains("–")
+                     && forecastFields[0].stringValue.contains("可信度：中"),
+                     "a five-hour depletion forecast must include an interval, confidence label, and color dot")
         precondition(forecastFields[0].textColor?.isEqual(QuotaLevel.caution.color) == true,
                      "a medium-confidence forecast must use the caution color")
+        precondition(detail.subviews.compactMap { $0 as? NSTextField }
+            .contains(where: { $0.stringValue == "采样 6" }),
+                     "detail card must show the active forecast sample count")
         precondition(!detail.subviews.compactMap { $0 as? NSTextField }
             .contains(where: { $0.stringValue == "本周期内不会用尽" }),
                      "weekly quota must not claim a depletion forecast")
+        detail.snapshot = imminentSnapshot; detail.usageAlert = .spike
+        precondition(detail.subviews.compactMap { $0 as? NSTextField }
+            .contains(where: { $0.stringValue == "用量突然升高" && $0.textColor?.isEqual(QuotaLevel.low.color) == true }),
+                     "detail card must expose the local spike with a semantic color")
+        precondition(detail.subviews.compactMap { $0 as? NSTextField }
+            .contains(where: { $0.stringValue.contains("后重置") && $0.textColor?.isEqual(QuotaLevel.caution.color) == true }),
+                     "detail card must emphasize an imminent five-hour reset")
         detail.historySamples = []
         let emptyHistoryHeight = detail.preferredContentSize.height
         detail.historySamples = [QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)]

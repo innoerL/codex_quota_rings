@@ -56,7 +56,7 @@ import AppKit
                      "restoring the compact widget must retain density and its top-left anchor")
         app.toggleDetails(); precondition(app.detailsPanel.isVisible)
         let detailTop = app.detailsPanel.frame.maxY
-        p.historyRetention = .local24Hours; app.applyPreferences(p)
+        p.historyRetention = .local5Hours; app.applyPreferences(p)
         app.toggleDetails(); precondition(app.detailsPanel.isVisible)
         precondition(abs(app.detailsPanel.frame.maxY - detailTop) < 1,
                      "history changes must preserve the compact detail top edge")

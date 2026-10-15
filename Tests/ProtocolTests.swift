@@ -48,6 +48,9 @@ private final class CountingLocator: CodexLocating {
                 return
             }
             if let value = snapshot?.fiveHour?.remainingPercent {
+                guard snapshot?.resetCreditCount == 2 else {
+                    fail("reset credit count was not decoded from the local quota response")
+                }
                 readings.append(Int(value))
                 if readings.count == 1 { normalClient.refresh() }
             }

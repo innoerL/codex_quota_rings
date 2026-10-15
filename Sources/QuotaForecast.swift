@@ -19,11 +19,29 @@ enum ForecastConfidence: Equatable {
         case .low: return "低"
         }
     }
+
+    /// Relative uncertainty applied to the observed consumption rate. A faster
+    /// plausible rate gives the early bound and a slower one gives the late bound.
+    var rateUncertainty: Double {
+        switch self {
+        case .high: return 0.10
+        case .medium: return 0.20
+        case .low: return 0.35
+        }
+    }
 }
 
 struct QuotaForecast: Equatable {
     let outcome: ForecastOutcome
     let confidence: ForecastConfidence?
+    /// The plausible depletion interval when the nominal forecast is before reset.
+    let depletionRange: DateInterval?
+
+    init(outcome: ForecastOutcome, confidence: ForecastConfidence?, depletionRange: DateInterval? = nil) {
+        self.outcome = outcome
+        self.confidence = confidence
+        self.depletionRange = depletionRange
+    }
 
     static let collecting = QuotaForecast(outcome: .collecting, confidence: nil)
     static let unstable = QuotaForecast(outcome: .unstable, confidence: nil)
@@ -44,6 +62,9 @@ struct QuotaForecastEngine {
     }
 
     private var fiveHourSamples: [Sample] = []
+
+    var hasFiveHourSampleData: Bool { !fiveHourSamples.isEmpty }
+    var fiveHourSampleCount: Int { fiveHourSamples.count }
 
     mutating func record(_ snapshot: QuotaSnapshot) -> QuotaForecasts {
         let fiveHour = Self.record(snapshot.fiveHour, at: snapshot.fetchedAt, samples: &fiveHourSamples)
@@ -74,51 +95,33 @@ struct QuotaForecastEngine {
     }
 
     private static func forecast(at date: Date, resetAt: TimeInterval, remainingPercent: Double, samples: [Sample]) -> QuotaForecast {
-        guard samples.count >= 6,
+        guard samples.count >= 2,
               let first = samples.first,
-              date.timeIntervalSince(first.date) >= 10 * 60 else { return .collecting }
-
-        let recentCutoff = date.addingTimeInterval(-10 * 60)
-        let recentSamples = samples.filter { $0.date >= recentCutoff }
-        guard recentSamples.count >= 4,
-              let recentFirst = recentSamples.first,
-              date.timeIntervalSince(recentFirst.date) >= 5 * 60,
-              let rollingRate = robustHourlyRate(for: samples),
-              let recentRate = robustHourlyRate(for: recentSamples),
-              let recentEndToEndRate = endToEndHourlyRate(for: recentSamples),
-              rollingRate >= 0.1, recentRate >= 0.1, recentEndToEndRate >= 0.1 else { return .collecting }
-
-        let largestDifference = max(relativeDifference(rollingRate, recentRate),
-                                    relativeDifference(rollingRate, recentEndToEndRate),
-                                    relativeDifference(recentRate, recentEndToEndRate))
-        guard largestDifference <= 0.35 else { return .unstable }
+              let consumptionRate = endToEndHourlyRate(for: samples),
+              consumptionRate > 0.01 else { return .collecting }
 
         let span = date.timeIntervalSince(first.date)
         let confidence: ForecastConfidence
-        if samples.count >= 12, span >= 20 * 60, largestDifference <= 0.15 {
+        if samples.count >= 12, span >= 20 * 60 {
             confidence = .high
-        } else if samples.count >= 8, span >= 15 * 60, largestDifference <= 0.25 {
+        } else if samples.count >= 8, span >= 15 * 60 {
             confidence = .medium
         } else {
             confidence = .low
         }
-        let secondsUntilDepletion = remainingPercent / recentEndToEndRate * 3_600
+        let secondsUntilDepletion = remainingPercent / consumptionRate * 3_600
         let depletionDate = date.addingTimeInterval(secondsUntilDepletion)
-        let outcome: ForecastOutcome = depletionDate.timeIntervalSince1970 >= resetAt ? .willNotDeplete : .depletedAt(depletionDate)
-        return QuotaForecast(outcome: outcome, confidence: confidence)
-    }
+        guard depletionDate.timeIntervalSince1970 < resetAt else {
+            return QuotaForecast(outcome: .willNotDeplete, confidence: confidence)
+        }
 
-    private static func robustHourlyRate(for samples: [Sample]) -> Double? {
-        let rates = samples.indices.flatMap { start in
-            samples.indices.dropFirst(start + 1).compactMap { end -> Double? in
-                let seconds = samples[end].date.timeIntervalSince(samples[start].date)
-                let increase = samples[end].usedPercent - samples[start].usedPercent
-                guard seconds > 0, increase >= 0 else { return nil }
-                return increase / seconds * 3_600
-            }
-        }.sorted()
-        guard !rates.isEmpty else { return nil }
-        return rates[rates.count / 2]
+        let uncertainty = confidence.rateUncertainty
+        let earliest = date.addingTimeInterval(remainingPercent / (consumptionRate * (1 + uncertainty)) * 3_600)
+        let resetDate = Date(timeIntervalSince1970: resetAt)
+        let latestEstimate = date.addingTimeInterval(remainingPercent / (consumptionRate * (1 - uncertainty)) * 3_600)
+        let latest = min(latestEstimate, resetDate)
+        let range = latest > earliest ? DateInterval(start: earliest, end: latest) : nil
+        return QuotaForecast(outcome: .depletedAt(depletionDate), confidence: confidence, depletionRange: range)
     }
 
     private static func endToEndHourlyRate(for samples: [Sample]) -> Double? {
@@ -129,7 +132,4 @@ struct QuotaForecastEngine {
         return increase / seconds * 3_600
     }
 
-    private static func relativeDifference(_ first: Double, _ second: Double) -> Double {
-        abs(first - second) / max(first, second, 0.1)
-    }
 }

@@ -10,6 +10,8 @@ chmod +x Tests/fake-codex.py Tests/fake-codex-no-auth.py
 compile() { swiftc -swift-version 5 -module-cache-path "$quota_cache" "$@"; }
 compile Sources/QuotaModel.swift Tests/ModelTests.swift -o "$quota_test_dir/model"
 "$quota_test_dir/model"
+compile Sources/QuotaModel.swift Sources/QuotaSignal.swift Tests/QuotaSignalTests.swift -o "$quota_test_dir/signals"
+"$quota_test_dir/signals"
 compile Sources/QuotaModel.swift Sources/QuotaForecast.swift Tests/ForecastTests.swift -o "$quota_test_dir/forecast"
 "$quota_test_dir/forecast"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Tests/QuotaHistoryTests.swift -o "$quota_test_dir/history"
@@ -32,7 +34,7 @@ compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPresen
 "$quota_test_dir/visibility"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPresentation.swift Sources/WidgetPreferences.swift Sources/WidgetMenu.swift Tests/MenuTests.swift -o "$quota_test_dir/menu"
 "$quota_test_dir/menu"
-quota_view_sources=(Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/QuotaTrend.swift Sources/QuotaConnectionState.swift Sources/QuotaForecast.swift Sources/WidgetPresentation.swift Sources/WidgetPreferences.swift Sources/QuotaView.swift Sources/QuotaDetailsView.swift Sources/LargeQuotaView.swift)
+quota_view_sources=(Sources/QuotaModel.swift Sources/QuotaSignal.swift Sources/QuotaHistory.swift Sources/QuotaTrend.swift Sources/QuotaConnectionState.swift Sources/QuotaForecast.swift Sources/WidgetPresentation.swift Sources/WidgetPreferences.swift Sources/QuotaView.swift Sources/QuotaDetailsView.swift Sources/LargeQuotaView.swift)
 compile "${quota_view_sources[@]}" Tests/AppearanceCheck.swift -o "$quota_test_dir/appearance"
 "$quota_test_dir/appearance" "$PWD/build/detail-preview.png"
 compile "${quota_view_sources[@]}" Tests/LayoutTests.swift -o "$quota_test_dir/layout"

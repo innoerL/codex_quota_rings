@@ -1,4 +1,45 @@
-import Foundation
+import AppKit
+
+extension QuotaLevel {
+    var color: NSColor {
+        switch self {
+        case .ample: return NSColor(srgbRed: 143/255, green: 169/255, blue: 144/255, alpha: 1)
+        case .caution: return NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1)
+        case .low: return NSColor(srgbRed: 189/255, green: 122/255, blue: 112/255, alpha: 1)
+        case .unknown: return NSColor(white: 0.42, alpha: 1)
+        }
+    }
+}
+
+enum WidgetRingTheme: String, CaseIterable {
+    case semantic
+    case graphite
+    case warm
+    case systemAccent
+
+    func color(for level: QuotaLevel) -> NSColor {
+        switch self {
+        case .semantic:
+            return level.color
+        case .graphite:
+            switch level {
+            case .ample: return NSColor(white: 0.78, alpha: 1)
+            case .caution: return NSColor(white: 0.62, alpha: 1)
+            case .low: return NSColor(white: 0.46, alpha: 1)
+            case .unknown: return NSColor(white: 0.42, alpha: 1)
+            }
+        case .warm:
+            switch level {
+            case .ample: return NSColor(srgbRed: 216/255, green: 163/255, blue: 92/255, alpha: 1)
+            case .caution: return NSColor(srgbRed: 197/255, green: 132/255, blue: 71/255, alpha: 1)
+            case .low: return NSColor(srgbRed: 177/255, green: 91/255, blue: 79/255, alpha: 1)
+            case .unknown: return NSColor(white: 0.42, alpha: 1)
+            }
+        case .systemAccent:
+            return level == .unknown ? NSColor(white: 0.42, alpha: 1) : NSColor.controlAccentColor
+        }
+    }
+}
 
 enum WidgetOpacityPreset: String, CaseIterable {
     case opaque

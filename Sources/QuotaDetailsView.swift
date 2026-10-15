@@ -9,6 +9,8 @@ final class QuotaDetailsView: NSView {
     var contentOpacity: CGFloat = WidgetOpacityPreset.opaque.alpha { didSet { applyPresentation() } }
     var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
     var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
+    var hasForecastSampleData = false { didSet { updateLabels() } }
+    var forecastSampleCount = 0 { didSet { updateLabels() } }
     var connectionError: String? { didSet { updateLabels() } }
     var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance() } }
     var historySamples: [QuotaHistorySample] = [] { didSet { trend.samples = historySamples } }
@@ -17,6 +19,8 @@ final class QuotaDetailsView: NSView {
     var onPointerEntered: (() -> Void)?
     var onPointerExited: (() -> Void)?
     var showUsed = false { didSet { updateLabels() } }
+    var usageAlert: QuotaUsageAlert = .none { didSet { updateLabels() } }
+    var lowQuotaContrastMode = false { didSet { applyPresentation() } }
     private let material = NSVisualEffectView()
     private var values: [NSTextField] = []
     private var resets: [NSTextField] = []
@@ -37,7 +41,7 @@ final class QuotaDetailsView: NSView {
         layer?.cornerRadius = 14
         layer?.masksToBounds = true
         layer?.borderWidth = 0.5
-        layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        layer?.borderColor = NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.12).cgColor
         material.frame = bounds
         material.autoresizingMask = [.width, .height]
         material.material = .popover
@@ -89,6 +93,7 @@ final class QuotaDetailsView: NSView {
         layer?.cornerRadius = 14 * scale
         layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
         material.alphaValue = 1
+        material.material = lowQuotaContrastMode ? .sidebar : .popover
         material.frame = bounds
         for subview in subviews where subview !== material {
             guard let frame = baseFrames[ObjectIdentifier(subview)] else { continue }
@@ -104,6 +109,7 @@ final class QuotaDetailsView: NSView {
             values[index].stringValue = value.map { "\(Int($0.rounded()))%" } ?? "—"
             values[index].textColor = outdated ? .tertiaryLabelColor : .labelColor
             resets[index].stringValue = quota?.resetDescription() ?? "重置时间暂不可用"
+            resets[index].textColor = index == 0 && quota?.isResetImminent() == true ? QuotaLevel.caution.color : .secondaryLabelColor
             if index == 0 {
                 forecastLabels[index].stringValue = forecastText(forecasts.fiveHour)
                 forecastLabels[index].textColor = forecastColor(forecasts.fiveHour)
@@ -118,23 +124,41 @@ final class QuotaDetailsView: NSView {
         case .locating where snapshot == nil: updated.stringValue = "正在查找 Codex…"
         default: if let snapshot {
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            updated.stringValue = "最近更新 \(format.string(from: snapshot.fetchedAt))" + (outdated ? " · 已过期" : "")
-        } else { updated.stringValue = "正在读取额度…" }
+            let signal = usageAlert.chineseLabel ?? (snapshot.fiveHour?.isResetImminent() == true ? "5 小时额度即将重置" : nil)
+            updated.stringValue = signal ?? ("最近更新 \(format.string(from: snapshot.fetchedAt))" + (outdated ? " · 已过期" : ""))
+            updated.textColor = signal == nil ? .secondaryLabelColor : (usageAlert == .spike ? QuotaLevel.low.color : QuotaLevel.caution.color)
+        } else { updated.stringValue = "正在读取额度…"; updated.textColor = .secondaryLabelColor }
         }
-        automatic.stringValue = showUsed ? "已用额度" : "自动刷新"
+        automatic.stringValue = showUsed ? "已用额度" : "采样 \(forecastSampleCount)"
     }
     private func forecastText(_ forecast: QuotaForecast) -> String {
-        guard connectionError == nil, snapshot?.isStale() != true else { return "收集中，稍后预测" }
+        guard connectionError == nil, snapshot?.isStale() != true else {
+            return hasForecastSampleData ? "" : "收集中，稍后开始预测"
+        }
+        guard hasForecastSampleData else { return "收集中，稍后开始预测" }
         switch forecast.outcome {
-        case .collecting: return "收集中，稍后预测"
+        case .collecting: return ""
         case .unstable: return "● 消耗速率不稳定，暂不预测"
         case .willNotDeplete: return "本周期内不会用尽"
         case .depletedAt(let date):
+            let confidence = forecast.confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
+            if let range = forecast.depletionRange {
+                return "● \(depletionRangeText(range)) 用尽\(confidence)"
+            }
             let format = DateFormatter()
             format.dateFormat = Calendar.current.isDateInToday(date) ? "预计 HH:mm 用尽" : "预计 M/d HH:mm 用尽"
-            let confidence = forecast.confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
             return "● \(format.string(from: date))\(confidence)"
         }
+    }
+    private func depletionRangeText(_ range: DateInterval) -> String {
+        let format = DateFormatter()
+        let calendar = Calendar.current
+        if calendar.isDateInToday(range.start), calendar.isDateInToday(range.end) {
+            format.dateFormat = "HH:mm"
+            return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
+        }
+        format.dateFormat = "M/d HH:mm"
+        return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
     }
     private func forecastColor(_ forecast: QuotaForecast) -> NSColor {
         switch forecast.outcome {
