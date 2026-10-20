@@ -3,7 +3,7 @@ import AppKit
 final class WidgetMenu: NSObject {
     var preferences: WidgetPreferences
     var onChange: ((WidgetPreferences) -> Void)?
-    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), theme(WidgetRingTheme), history(HistoryRetention), language(AppLanguage) }
+    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), theme(WidgetRingTheme), history(HistoryRetention), language(AppLanguage), starTrail(Bool), resetCelebration(Bool), mergedRings(Bool) }
     init(preferences: WidgetPreferences) { self.preferences = preferences }
 
     func makeMenu() -> NSMenu {
@@ -26,7 +26,13 @@ final class WidgetMenu: NSObject {
         group(localized("环形配色", "Ring colors"), choices: [(localized("额度状态", "Quota status"), .theme(.semantic), preferences.ringTheme == .semantic), (localized("石墨", "Graphite"), .theme(.graphite), preferences.ringTheme == .graphite), (localized("暖色", "Warm"), .theme(.warm), preferences.ringTheme == .warm), (localized("系统强调色", "System accent"), .theme(.systemAccent), preferences.ringTheme == .systemAccent)])
         group(localized("趋势记录", "Trend history"), choices: [(localized("仅本次 · 30 分钟", "Session only · 30 min"), .history(.session30Minutes), preferences.historyRetention == .session30Minutes), (localized("保留 5 小时", "Keep 5 hours"), .history(.local5Hours), preferences.historyRetention == .local5Hours)])
         group(localized("界面语言", "Language"), choices: AppLanguage.allCases.map { ($0.menuLabel, .language($0), preferences.language == $0) })
+        group(localized("星轨模式", "Star trails"), choices: toggleChoices(on: preferences.starTrailEnabled, onChoice: .starTrail(true), offChoice: .starTrail(false)))
+        group(localized("重置庆祝", "Reset celebration"), choices: toggleChoices(on: preferences.resetCelebrationEnabled, onChoice: .resetCelebration(true), offChoice: .resetCelebration(false)))
+        group(localized("双环合体", "Concentric rings"), choices: toggleChoices(on: preferences.mergedRingsEnabled, onChoice: .mergedRings(true), offChoice: .mergedRings(false)))
         return menu
+    }
+    private func toggleChoices(on: Bool, onChoice: Choice, offChoice: Choice) -> [(String, Choice, Bool)] {
+        [(localized("开启", "On"), onChoice, on), (localized("关闭", "Off"), offChoice, !on)]
     }
     @objc private func selectChoice(_ sender: NSMenuItem) {
         guard let choice = sender.representedObject as? Choice else { return }
@@ -39,6 +45,9 @@ final class WidgetMenu: NSObject {
         case .theme(let theme): preferences.ringTheme = theme
         case .history(let retention): preferences.historyRetention = retention
         case .language(let language): preferences.language = language
+        case .starTrail(let enabled): preferences.starTrailEnabled = enabled
+        case .resetCelebration(let enabled): preferences.resetCelebrationEnabled = enabled
+        case .mergedRings(let enabled): preferences.mergedRingsEnabled = enabled
         }
         onChange?(preferences)
     }

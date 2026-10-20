@@ -38,6 +38,12 @@ import AppKit
         ), week: .collecting)
         large.forecasts = forecasts
         large.forecastSampleCount = 6
+        large.starTrailEnabled = true
+        large.mergedRingsEnabled = true
+        large.resetCelebrationProgress = 0.5
+        precondition(large.starTrailEnabled && large.mergedRingsEnabled && large.resetCelebrationProgress == 0.5,
+                     "visual modes must be independently configurable on the large widget")
+        large.mergedRingsEnabled = false
         let staleCompact = QuotaView(frame: .zero)
         staleCompact.snapshot = QuotaSnapshot(fiveHour: sample.fiveHour, week: sample.week, fetchedAt: now.addingTimeInterval(-91))
         staleCompact.forecasts = forecasts
@@ -106,13 +112,14 @@ import AppKit
         for (index, orientation) in SmallLayout.allCases.enumerated() {
             let view = QuotaView(frame: .zero)
             view.smallLayout = orientation; view.snapshot = sample
+            view.starTrailEnabled = true; view.mergedRingsEnabled = true; view.resetCelebrationProgress = 0.4
             view.frame = NSRect(origin: NSPoint(x: 25 + index * 90, y: 20), size: view.preferredContentSize)
             root.addSubview(view)
         }
         large.frame = NSRect(origin: NSPoint(x: 20, y: 380), size: large.preferredContentSize)
         root.addSubview(large)
         let expanded = LargeQuotaView(frame: .zero)
-        expanded.isExpanded = true; expanded.snapshot = sample; expanded.forecasts = forecasts
+        expanded.isExpanded = true; expanded.snapshot = sample; expanded.forecasts = forecasts; expanded.mergedRingsEnabled = true
         expanded.frame = NSRect(origin: NSPoint(x: 320, y: 60), size: expanded.preferredContentSize)
         root.addSubview(expanded)
         let detail = QuotaDetailsView(frame: .zero)

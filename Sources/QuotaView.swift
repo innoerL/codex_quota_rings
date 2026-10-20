@@ -22,6 +22,9 @@ class QuotaView: NSView {
     var lowQuotaContrastMode = false { didSet { needsDisplay = true; updateTooltip() } }
     var ringFeedback: RingFeedback = .rest { didSet { needsDisplay = true } }
     var ringFeedbackPhase: CGFloat = 0 { didSet { needsDisplay = true } }
+    var starTrailEnabled = true { didSet { needsDisplay = true } }
+    var mergedRingsEnabled = false { didSet { needsDisplay = true } }
+    var resetCelebrationProgress: CGFloat? { didSet { needsDisplay = true } }
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
     var onDrag: (() -> Void)?
@@ -75,8 +78,9 @@ class QuotaView: NSView {
         (string as NSString).draw(at: CGPoint(x: center.x - measured.width / 2, y: center.y - measured.height / 2), withAttributes: attributes)
     }
     func ring(_ quota: QuotaWindow?, at center: CGPoint, title: String, radius: CGFloat = 15,
-              resetEmphasis: Bool = false, isPrimary: Bool = false) {
+              resetEmphasis: Bool = false, isPrimary: Bool = false, showValue: Bool = true, showTitle: Bool = true) {
         let scale = radius / 15
+        if starTrailEnabled { drawStarTrail(center: center, radius: radius, scale: scale, isPrimary: isPrimary) }
         let track = NSBezierPath(ovalIn: NSRect(x: center.x-radius, y: center.y-radius, width: radius*2, height: radius*2))
         NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.19 : 0.10).setStroke(); track.lineWidth = 1.8 * scale; track.stroke()
         let value = showUsed ? quota?.clampedUsedPercent : quota?.remainingPercent
@@ -97,21 +101,35 @@ class QuotaView: NSView {
         }
         drawRingFeedback(quota: quota, value: value, center: center, radius: radius, scale: scale,
                          isPrimary: isPrimary, outdated: outdated)
+        guard showValue || showTitle else { return }
         let numeral = value.map { "\(Int($0.rounded()))" } ?? "—"
         let base = NSFont.monospacedDigitSystemFont(ofSize: 10.5 * scale, weight: .semibold)
         let rounded = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 10.5 * scale) } ?? base
         let ink = NSColor.labelColor.withAlphaComponent(outdated ? 0.55 : (lowQuotaContrastMode ? 1 : 0.94))
-        let label = NSMutableAttributedString(string: numeral, attributes: [.font: rounded, .foregroundColor: ink])
-        if value != nil {
+        let label = NSMutableAttributedString(string: showValue ? numeral : "", attributes: [.font: rounded, .foregroundColor: ink])
+        if showValue, value != nil {
             label.append(NSAttributedString(string: "%", attributes: [.font: NSFont.systemFont(ofSize: 6 * scale, weight: .medium), .foregroundColor: ink.withAlphaComponent(outdated ? 0.35 : 0.65), .baselineOffset: 0.5 * scale]))
         }
         let size = label.size()
         label.draw(at: NSPoint(x: center.x-size.width/2, y: center.y-size.height/2))
-        text(title, center: CGPoint(x: center.x, y: center.y + radius + (scale > 1 ? 20 : 9)), size: scale > 1 ? 13 : 8, weight: .medium, color: NSColor.secondaryLabelColor)
+        if showTitle { text(title, center: CGPoint(x: center.x, y: center.y + radius + (scale > 1 ? 20 : 9)), size: scale > 1 ? 13 : 8, weight: .medium, color: NSColor.secondaryLabelColor) }
         if resetEmphasis {
             QuotaLevel.caution.color.setFill()
             let dot = max(3, 3.8 * scale)
             NSBezierPath(ovalIn: NSRect(x: center.x + radius * 0.58, y: center.y - radius * 0.82, width: dot, height: dot)).fill()
+        }
+    }
+    private func drawStarTrail(center: CGPoint, radius: CGFloat, scale: CGFloat, isPrimary: Bool) {
+        let orbitRadius = radius + 3.2 * scale
+        let orbit = NSBezierPath(ovalIn: NSRect(x: center.x - orbitRadius, y: center.y - orbitRadius, width: orbitRadius * 2, height: orbitRadius * 2))
+        let tint = isPrimary ? ringTheme.color(for: snapshot?.fiveHour?.level ?? .unknown) : ringTheme.color(for: snapshot?.week?.level ?? .unknown)
+        tint.withAlphaComponent(0.17).setStroke(); orbit.lineWidth = 0.55 * scale; orbit.setLineDash([1, 3], count: 2, phase: 0); orbit.stroke()
+        for index in 0..<4 {
+            let angle = CGFloat(-Double.pi / 2 + Double(index) * 1.64 + (isPrimary ? 0.18 : 0.76))
+            let point = NSPoint(x: center.x + orbitRadius * cos(angle), y: center.y + orbitRadius * sin(angle))
+            let size = (index == 0 ? 1.7 : 1.1) * scale
+            tint.withAlphaComponent(index == 0 ? 0.50 : 0.28).setFill()
+            NSBezierPath(ovalIn: NSRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size)).fill()
         }
     }
     private func drawRingFeedback(quota: QuotaWindow?, value: Double?, center: CGPoint, radius: CGFloat,
@@ -119,7 +137,7 @@ class QuotaView: NSView {
         guard !outdated else { return }
         switch ringFeedback {
         case .rest:
-            return
+            break
         case .flowing:
             guard isPrimary, let value, value > 0 else { return }
             let amount = min(1, max(0, value / 100))
@@ -146,6 +164,28 @@ class QuotaView: NSView {
             QuotaLevel.low.color.withAlphaComponent(0.10 + 0.18 * pulse).setStroke()
             halo.lineWidth = (0.9 + 0.8 * pulse) * scale; halo.stroke()
         }
+        if isPrimary, let progress = resetCelebrationProgress {
+            let pulse = sin(min(1, max(0, progress)) * .pi)
+            let expansion = (2 + 7 * progress) * scale
+            let halo = NSBezierPath(ovalIn: NSRect(x: center.x - radius - expansion, y: center.y - radius - expansion,
+                                                    width: (radius + expansion) * 2, height: (radius + expansion) * 2))
+            NSColor.white.withAlphaComponent(0.42 * pulse).setStroke()
+            halo.lineWidth = (1.1 + pulse) * scale; halo.stroke()
+        }
+    }
+    func mergedRings(outer: QuotaWindow?, inner: QuotaWindow?, at center: CGPoint, baseRadius: CGFloat) {
+        let outerRadius = baseRadius + (baseRadius > 20 ? 8 : 5)
+        let innerRadius = max(6, baseRadius - (baseRadius > 20 ? 7 : 4))
+        ring(outer, at: center, title: "", radius: outerRadius, resetEmphasis: outer?.isResetImminent() == true,
+             isPrimary: true, showValue: false, showTitle: false)
+        ring(inner, at: center, title: "", radius: innerRadius, showValue: false, showTitle: false)
+        let outerValue = showUsed ? outer?.clampedUsedPercent : outer?.remainingPercent
+        let innerValue = showUsed ? inner?.clampedUsedPercent : inner?.remainingPercent
+        let scale = baseRadius / 15
+        let first = outerValue.map { localized("5时 \(Int($0.rounded()))%", "5h \(Int($0.rounded()))%") } ?? "5h —"
+        let second = innerValue.map { localized("周 \(Int($0.rounded()))%", "7d \(Int($0.rounded()))%") } ?? "7d —"
+        text(first, center: CGPoint(x: center.x, y: center.y - 4 * scale), size: max(5.5, 7.5 * scale), weight: .semibold, color: .labelColor)
+        text(second, center: CGPoint(x: center.x, y: center.y + 5 * scale), size: max(4.8, 6 * scale), weight: .medium, color: .secondaryLabelColor)
     }
     override func draw(_ dirtyRect: NSRect) {
         // A quiet sidebar control at rest, with a subtle macOS-style hover surface.
@@ -155,8 +195,13 @@ class QuotaView: NSView {
             NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.16 : 0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         let scale = metrics.scale
-        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: localized("5 小时", "5 hours"), radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
-        ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: localized("一周", "Week"), radius: metrics.compactRingRadius)
+        if mergedRingsEnabled {
+            mergedRings(outer: snapshot?.fiveHour, inner: snapshot?.week,
+                        at: CGPoint(x: smallLayout == .vertical ? bounds.midX : bounds.midX, y: 30 * scale), baseRadius: metrics.compactRingRadius)
+        } else {
+            ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: localized("5 小时", "5 hours"), radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+            ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: localized("一周", "Week"), radius: metrics.compactRingRadius)
+        }
         if connectionError != nil || snapshot?.isStale() == true {
             QuotaLevel.caution.color.setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()

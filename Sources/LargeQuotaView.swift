@@ -44,8 +44,13 @@ final class LargeQuotaView: QuotaView {
         NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.97).setFill(); card.fill()
         NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.11).setStroke(); card.lineWidth = 1; card.stroke()
         label(showUsed ? localized("已用额度", "Used quota") : localized("剩余额度", "Remaining quota"), x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
-        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: localized("5 小时", "5 hours"), radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
-        ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: localized("一周", "Week"), radius: metrics.largeRingRadius)
+        if mergedRingsEnabled {
+            mergedRings(outer: snapshot?.fiveHour, inner: snapshot?.week,
+                        at: CGPoint(x: bounds.midX, y: 77 * scale), baseRadius: metrics.largeRingRadius)
+        } else {
+            ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: localized("5 小时", "5 hours"), radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+            ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: localized("一周", "Week"), radius: metrics.largeRingRadius)
+        }
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {
             QuotaLevel.caution.color.withAlphaComponent(0.7).setFill()

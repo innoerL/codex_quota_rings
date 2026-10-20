@@ -30,6 +30,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var feedbackTimer: Timer?
     private var activeRingFeedback: RingFeedback = .rest
     private var ringFeedbackStartedAt: Date?
+    private var celebrationTimer: Timer?
+    private var celebrationStartedAt: Date?
+    private var lastFiveHourResetAt: TimeInterval?
     private lazy var hoverDetails = HoverDetailController { [weak self] state in self?.applyDetailState(state) }
 
     init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
@@ -142,6 +145,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         freshnessTimer?.invalidate()
         visibilityTimer?.invalidate()
         feedbackTimer?.invalidate()
+        celebrationTimer?.invalidate()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         panel?.orderOut(nil)
@@ -224,6 +228,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         detailsPanel?.title = localized("额度详情", "Quota details")
         statusItem?.button?.toolTip = localized("Codex 额度双环", "Codex Quota Rings")
         applyPresentation()
+        if !selection.resetCelebrationEnabled { stopResetCelebration() }
         if previous.historyRetention != selection.historyRetention {
             _ = historyStore.setRetention(selection.historyRetention, at: Date())
             publishHistory()
@@ -265,6 +270,10 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.metrics = metrics; view.contentOpacity = opacity; view.ringTheme = preferences.ringTheme
         largeView.metrics = metrics; largeView.contentOpacity = opacity; largeView.ringTheme = preferences.ringTheme
         details.metrics = metrics; details.contentOpacity = opacity
+        for target in [view as QuotaView, largeView as QuotaView] {
+            target.starTrailEnabled = preferences.starTrailEnabled
+            target.mergedRingsEnabled = preferences.mergedRingsEnabled
+        }
         panel?.alphaValue = opacity
         detailsPanel?.alphaValue = opacity
     }
@@ -319,6 +328,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             applyPresentation()
         }
         updateRingFeedback(usageAlert: usageAlert, lowQuota: contrastMode)
+        observeReset(for: snapshot)
         for target in [view as QuotaView, largeView as QuotaView] {
             target.snapshot = snapshot
             target.connectionError = error
@@ -371,6 +381,34 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .rest: return
         }
         view.ringFeedbackPhase = phase; largeView.ringFeedbackPhase = phase
+    }
+    private func observeReset(for snapshot: QuotaSnapshot?) {
+        guard let resetAt = snapshot?.fiveHour?.resetsAt else { return }
+        defer { lastFiveHourResetAt = resetAt }
+        guard preferences.resetCelebrationEnabled, let previous = lastFiveHourResetAt,
+              abs(previous - resetAt) > 0.5 else { return }
+        startResetCelebration()
+    }
+    private func startResetCelebration() {
+        celebrationTimer?.invalidate()
+        celebrationStartedAt = Date()
+        for target in [view as QuotaView, largeView as QuotaView] { target.resetCelebrationProgress = 0 }
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in self?.advanceResetCelebration() }
+        celebrationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+    private func advanceResetCelebration() {
+        guard let celebrationStartedAt else { return }
+        let progress = CGFloat(Date().timeIntervalSince(celebrationStartedAt) / 1.25)
+        if progress >= 1 {
+            stopResetCelebration()
+        } else {
+            view.resetCelebrationProgress = progress; largeView.resetCelebrationProgress = progress
+        }
+    }
+    private func stopResetCelebration() {
+        celebrationTimer?.invalidate(); celebrationTimer = nil; celebrationStartedAt = nil
+        view.resetCelebrationProgress = nil; largeView.resetCelebrationProgress = nil
     }
     private func clearForecastChange() {
         forecastChange = nil

@@ -7,7 +7,7 @@ import AppKit
         var last: WidgetPreferences?
         controller.onChange = { last = $0 }
         let menu = controller.makeMenu()
-        precondition(menu.items.count == 8)
+        precondition(menu.items.count == 11)
         precondition(menu.items[2].submenu!.items.map(\.title) == ["聚焦 Codex 时显示", "一直显示", "聚焦桌面时显示"])
         precondition(menu.items[2].submenu!.items[0].state == .on)
         precondition(menu.items[3].title == "透明度")
@@ -25,6 +25,10 @@ import AppKit
         precondition(menu.items[7].title == "界面语言")
         precondition(menu.items[7].submenu!.items.map(\.title) == ["中文", "English"])
         precondition(menu.items[7].submenu!.items[0].state == .on)
+        precondition(menu.items[8].title == "星轨模式" && menu.items[8].submenu!.items.map(\.title) == ["开启", "关闭"])
+        precondition(menu.items[8].submenu!.items[0].state == .on)
+        precondition(menu.items[9].title == "重置庆祝" && menu.items[9].submenu!.items[0].state == .on)
+        precondition(menu.items[10].title == "双环合体" && menu.items[10].submenu!.items[1].state == .on)
         let desktop = menu.items[2].submenu!.items[2]
         NSApp.sendAction(desktop.action!, to: desktop.target, from: desktop)
         precondition(last?.displayScope == .focusDesktop && last?.size == .small)
@@ -52,6 +56,13 @@ import AppKit
         let english = controller.makeMenu().items[7].submenu!.items[1]
         NSApp.sendAction(english.action!, to: english.target, from: english)
         precondition(last?.language == .english && last?.historyRetention == .local5Hours)
-        print("PASS: menu checkmarks, scope, appearance, theme, history and language selection, independent changes and disabled orientation")
+        let starOff = controller.makeMenu().items[8].submenu!.items[1]
+        NSApp.sendAction(starOff.action!, to: starOff.target, from: starOff)
+        let celebrationOff = controller.makeMenu().items[9].submenu!.items[1]
+        NSApp.sendAction(celebrationOff.action!, to: celebrationOff.target, from: celebrationOff)
+        let mergedOn = controller.makeMenu().items[10].submenu!.items[0]
+        NSApp.sendAction(mergedOn.action!, to: mergedOn.target, from: mergedOn)
+        precondition(last?.starTrailEnabled == false && last?.resetCelebrationEnabled == false && last?.mergedRingsEnabled == true)
+        print("PASS: menu checkmarks, scope, appearance, theme, history, language, and visual-mode selection")
     }
 }
