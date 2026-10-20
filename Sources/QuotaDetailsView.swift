@@ -15,6 +15,8 @@ final class QuotaDetailsView: NSView {
     var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance() } }
     var historySamples: [QuotaHistorySample] = [] { didSet { trend.samples = historySamples } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { trend.retention = historyRetention } }
+    var budgetUsedPercent: Double? { didSet { trend.budgetUsedPercent = budgetUsedPercent } }
+    var budgetLabel: String? { didSet { trend.budgetLabel = budgetLabel } }
     var onInstallCodex: (() -> Void)?
     var onPointerEntered: (() -> Void)?
     var onPointerExited: (() -> Void)?

@@ -1,6 +1,6 @@
 import Foundation
 
-enum QuotaLevel { case ample, caution, low, unknown }
+enum QuotaLevel { case ample, steady, caution, low, unknown }
 
 struct QuotaWindow: Decodable {
     let usedPercent: Double?
@@ -13,7 +13,8 @@ struct QuotaWindow: Decodable {
     var remainingPercent: Double? { clampedUsedPercent.map { 100 - $0 } }
     var level: QuotaLevel {
         guard let remainingPercent else { return .unknown }
-        if remainingPercent > 50 { return .ample }
+        if remainingPercent >= 65 { return .ample }
+        if remainingPercent >= 40 { return .steady }
         return remainingPercent >= 20 ? .caution : .low
     }
     static func resetCountdown(seconds: TimeInterval) -> String {

@@ -250,6 +250,11 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.metrics = metrics; view.contentOpacity = opacity; view.ringTheme = preferences.ringTheme
         largeView.metrics = metrics; largeView.contentOpacity = opacity; largeView.ringTheme = preferences.ringTheme
         details.metrics = metrics; details.contentOpacity = opacity
+        let reserved = preferences.budget.reservedPercent
+        let budgetUsedPercent = reserved.map { 100 - $0 }
+        let budgetLabel = reserved.map { "预算 留 \(Int($0))%" }
+        largeView.budgetUsedPercent = budgetUsedPercent; largeView.budgetLabel = budgetLabel
+        details.budgetUsedPercent = budgetUsedPercent; details.budgetLabel = budgetLabel
         panel?.alphaValue = opacity
         detailsPanel?.alphaValue = opacity
     }

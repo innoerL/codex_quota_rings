@@ -77,12 +77,16 @@ enum QuotaTrendRenderer {
                width: max(24, rect.width - 30), height: max(22, rect.height - 35))
     }
 
-    static func draw(series: QuotaTrendSeries, retention: HistoryRetention, in rect: CGRect) {
-        draw(series: series, retention: retention, timeRange: nil, in: rect)
+    static func draw(series: QuotaTrendSeries, retention: HistoryRetention,
+                     budgetUsedPercent: Double? = nil, budgetLabel: String? = nil, in rect: CGRect) {
+        draw(series: series, retention: retention, timeRange: nil,
+             budgetUsedPercent: budgetUsedPercent, budgetLabel: budgetLabel, in: rect)
     }
 
-    static func draw(samples: [QuotaHistorySample], retention: HistoryRetention, in rect: CGRect) {
-        draw(series: .make(samples: samples), retention: retention, timeRange: timeRange(for: samples), in: rect)
+    static func draw(samples: [QuotaHistorySample], retention: HistoryRetention,
+                     budgetUsedPercent: Double? = nil, budgetLabel: String? = nil, in rect: CGRect) {
+        draw(series: .make(samples: samples), retention: retention, timeRange: timeRange(for: samples),
+             budgetUsedPercent: budgetUsedPercent, budgetLabel: budgetLabel, in: rect)
     }
 
     static func timeRange(for samples: [QuotaHistorySample]) -> (start: Date, end: Date)? {
@@ -91,7 +95,8 @@ enum QuotaTrendRenderer {
     }
 
     private static func draw(series: QuotaTrendSeries, retention: HistoryRetention,
-                             timeRange: (start: Date, end: Date)?, in rect: CGRect) {
+                             timeRange: (start: Date, end: Date)?, budgetUsedPercent: Double?,
+                             budgetLabel: String?, in rect: CGRect) {
         let chart = chartRect(in: rect)
         NSColor.white.withAlphaComponent(0.045).setFill()
         NSBezierPath(roundedRect: chart, xRadius: 7, yRadius: 7).fill()
@@ -101,6 +106,19 @@ enum QuotaTrendRenderer {
             grid.move(to: NSPoint(x: chart.minX, y: chart.minY + chart.height * fraction))
             grid.line(to: NSPoint(x: chart.maxX, y: chart.minY + chart.height * fraction))
             grid.lineWidth = 0.5; grid.stroke()
+        }
+        if let budgetUsedPercent {
+            let used = min(100, max(0, budgetUsedPercent))
+            let y = chart.minY + chart.height * CGFloat(used / 100)
+            let budget = NSBezierPath()
+            budget.move(to: NSPoint(x: chart.minX, y: y)); budget.line(to: NSPoint(x: chart.maxX, y: y))
+            budget.lineWidth = 1
+            budget.setLineDash([3, 3], count: 2, phase: 0)
+            let budgetColor = NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1)
+            budgetColor.withAlphaComponent(0.78).setStroke(); budget.stroke()
+            if let budgetLabel {
+                drawRightText(budgetLabel, at: NSPoint(x: chart.maxX - 3, y: y - 10), color: budgetColor)
+            }
         }
 
         draw(series.fiveHour, color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1), in: chart)
@@ -195,6 +213,8 @@ enum QuotaTrendRenderer {
 final class QuotaTrendView: NSView {
     var samples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var retention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
+    var budgetUsedPercent: Double? { didSet { needsDisplay = true } }
+    var budgetLabel: String? { didSet { needsDisplay = true } }
     private var hover: QuotaTrendHover? { didSet { needsDisplay = true } }
     private var tracking: NSTrackingArea?
     override var isFlipped: Bool { true }
@@ -214,7 +234,8 @@ final class QuotaTrendView: NSView {
     }
     override func mouseExited(with event: NSEvent) { hover = nil }
     override func draw(_ dirtyRect: NSRect) {
-        QuotaTrendRenderer.draw(samples: samples, retention: retention, in: bounds)
+        QuotaTrendRenderer.draw(samples: samples, retention: retention, budgetUsedPercent: budgetUsedPercent,
+                                budgetLabel: budgetLabel, in: bounds)
         guard let hover,
               let range = QuotaTrendRenderer.timeRange(for: samples) else { return }
         let span = range.end.timeIntervalSince(range.start)

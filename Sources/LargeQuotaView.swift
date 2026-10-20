@@ -10,6 +10,8 @@ final class LargeQuotaView: QuotaView {
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
+    var budgetUsedPercent: Double? { didSet { needsDisplay = true } }
+    var budgetLabel: String? { didSet { needsDisplay = true } }
     var forecastSampleCount = 0 { didSet { needsDisplay = true } }
     var onInstallCodex: (() -> Void)?
     private var guidanceButton: NSButton?
@@ -88,21 +90,24 @@ final class LargeQuotaView: QuotaView {
                     label(forecastText(item.2), x: 16 * scale, y: y + 41 * scale, size: 10.5 * scale, weight: .medium, color: forecastColor(item.2))
                 }
             }
-            if let resetCreditCount = snapshot?.resetCreditCount {
-                let hasCredits = resetCreditCount > 0
-                label("可用重置卡 × \(resetCreditCount)", x: 16 * scale, y: 294 * scale, size: 10.5 * scale,
-                      weight: hasCredits ? .semibold : .regular,
-                      color: hasCredits ? QuotaLevel.caution.color : .secondaryLabelColor)
-            }
+            NSColor.white.withAlphaComponent(0.04).setFill()
+            NSBezierPath(roundedRect: NSRect(x: 12 * scale, y: 286 * scale, width: 256 * scale, height: 27 * scale),
+                         xRadius: 7 * scale, yRadius: 7 * scale).fill()
+            label(forecasts.fiveHour.chineseExplanation, x: 16 * scale, y: 292 * scale, size: 9.5 * scale,
+                  color: .secondaryLabelColor)
             let trendRect = NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale)
-            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention, in: trendRect)
+            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
+                                    budgetUsedPercent: budgetUsedPercent, budgetLabel: budgetLabel, in: trendRect)
             if let trendHover, let range = QuotaTrendRenderer.timeRange(for: historySamples) {
                 let span = range.end.timeIntervalSince(range.start)
                 let position = span > 0 ? trendHover.sample.timestamp.timeIntervalSince(range.start) / span : 0
                 QuotaTrendRenderer.drawHover(trendHover, position: position, in: trendRect)
             }
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            let footer = snapshot.map { "最近更新 \(format.string(from: $0.fetchedAt)) · 预测采样 \(forecastSampleCount) 个" } ?? "等待额度数据"
+            let footer = snapshot.map {
+                let credit = $0.resetCreditCount.map { " · 重置卡 × \($0)" } ?? ""
+                return "最近更新 \(format.string(from: $0.fetchedAt)) · 预测采样 \(forecastSampleCount) 个\(credit)"
+            } ?? "等待额度数据"
             label(footer, x: 16 * scale, y: 432 * scale, size: 10 * scale, color: .secondaryLabelColor)
         }
     }

@@ -31,6 +31,15 @@ import Foundation
               depletionRange.end > date else {
             fatalError("FAIL: a depletion forecast must expose an interval around its nominal time")
         }
+        let refreshed = depletionEngine.record(snapshot(used: 30, reset: start.addingTimeInterval(10_800).timeIntervalSince1970,
+                                                       at: start.addingTimeInterval(660))).fiveHour
+        guard case let .depletedAt(refreshedDate) = refreshed.outcome else {
+            fatalError("FAIL: new samples must keep updating an established forecast")
+        }
+        precondition(refreshedDate < date,
+                     "FAIL: continued sampling must promptly recalculate the estimate from the latest rate")
+        precondition(refreshed.sampleCount == 12 && refreshed.hourlyConsumption != nil,
+                     "FAIL: updated forecasts must retain their current sampling evidence")
 
         var resetEngine = QuotaForecastEngine()
         var afterReset: QuotaForecast = .collecting
@@ -134,6 +143,6 @@ import Foundation
         precondition(weekly.week.outcome == .collecting && weekly.week.confidence == nil,
                      "FAIL: weekly quota must never produce a depletion forecast")
 
-        print("PASS: quota forecasts cover confidence, depletion, reset, idle, and no-week behavior")
+        print("PASS: quota forecasts cover confidence, live recalculation, depletion, reset, idle, and no-week behavior")
     }
 }

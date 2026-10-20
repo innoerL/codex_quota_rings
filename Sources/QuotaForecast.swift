@@ -36,15 +36,34 @@ struct QuotaForecast: Equatable {
     let confidence: ForecastConfidence?
     /// The plausible depletion interval when the nominal forecast is before reset.
     let depletionRange: DateInterval?
+    /// Metadata for explaining the estimate without exposing raw samples.
+    let sampleCount: Int
+    let observedSpan: TimeInterval
+    let hourlyConsumption: Double?
 
-    init(outcome: ForecastOutcome, confidence: ForecastConfidence?, depletionRange: DateInterval? = nil) {
+    init(outcome: ForecastOutcome, confidence: ForecastConfidence?, depletionRange: DateInterval? = nil,
+         sampleCount: Int = 0, observedSpan: TimeInterval = 0, hourlyConsumption: Double? = nil) {
         self.outcome = outcome
         self.confidence = confidence
         self.depletionRange = depletionRange
+        self.sampleCount = sampleCount
+        self.observedSpan = observedSpan
+        self.hourlyConsumption = hourlyConsumption
     }
 
     static let collecting = QuotaForecast(outcome: .collecting, confidence: nil)
     static let unstable = QuotaForecast(outcome: .unstable, confidence: nil)
+
+    var chineseExplanation: String {
+        guard sampleCount > 0 else { return "预测依据：等待额度采样" }
+        let minutes = max(0, Int((observedSpan / 60).rounded(.down)))
+        let span = minutes > 0 ? "\(minutes) 分钟" : "不足 1 分钟"
+        guard let hourlyConsumption, hourlyConsumption > 0.01 else {
+            return "预测依据：\(sampleCount) 个采样 · \(span) · 等待消耗数据"
+        }
+        let confidenceText = confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
+        return String(format: "预测依据：%d 个采样 · %@ · %.1f%%/小时%@", sampleCount, span, hourlyConsumption, confidenceText)
+    }
 }
 
 struct QuotaForecasts: Equatable {
@@ -95,12 +114,14 @@ struct QuotaForecastEngine {
     }
 
     private static func forecast(at date: Date, resetAt: TimeInterval, remainingPercent: Double, samples: [Sample]) -> QuotaForecast {
+        let span = samples.first.map { max(0, date.timeIntervalSince($0.date)) } ?? 0
         guard samples.count >= 2,
-              let first = samples.first,
               let consumptionRate = endToEndHourlyRate(for: samples),
-              consumptionRate > 0.01 else { return .collecting }
+              consumptionRate > 0.01 else {
+            return QuotaForecast(outcome: .collecting, confidence: nil,
+                                 sampleCount: samples.count, observedSpan: span)
+        }
 
-        let span = date.timeIntervalSince(first.date)
         let confidence: ForecastConfidence
         if samples.count >= 12, span >= 20 * 60 {
             confidence = .high
@@ -112,7 +133,8 @@ struct QuotaForecastEngine {
         let secondsUntilDepletion = remainingPercent / consumptionRate * 3_600
         let depletionDate = date.addingTimeInterval(secondsUntilDepletion)
         guard depletionDate.timeIntervalSince1970 < resetAt else {
-            return QuotaForecast(outcome: .willNotDeplete, confidence: confidence)
+            return QuotaForecast(outcome: .willNotDeplete, confidence: confidence,
+                                 sampleCount: samples.count, observedSpan: span, hourlyConsumption: consumptionRate)
         }
 
         let uncertainty = confidence.rateUncertainty
@@ -121,7 +143,8 @@ struct QuotaForecastEngine {
         let latestEstimate = date.addingTimeInterval(remainingPercent / (consumptionRate * (1 - uncertainty)) * 3_600)
         let latest = min(latestEstimate, resetDate)
         let range = latest > earliest ? DateInterval(start: earliest, end: latest) : nil
-        return QuotaForecast(outcome: .depletedAt(depletionDate), confidence: confidence, depletionRange: range)
+        return QuotaForecast(outcome: .depletedAt(depletionDate), confidence: confidence, depletionRange: range,
+                             sampleCount: samples.count, observedSpan: span, hourlyConsumption: consumptionRate)
     }
 
     private static func endToEndHourlyRate(for samples: [Sample]) -> Double? {
