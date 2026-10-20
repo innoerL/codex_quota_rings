@@ -23,6 +23,7 @@ final class QuotaDetailsView: NSView {
     var usageAlert: QuotaUsageAlert = .none { didSet { updateLabels() } }
     var lowQuotaContrastMode = false { didSet { applyPresentation() } }
     private let material = NSVisualEffectView()
+    private var titles: [NSTextField] = []
     private var values: [NSTextField] = []
     private var resets: [NSTextField] = []
     private var forecastLabels: [NSTextField] = []
@@ -49,9 +50,10 @@ final class QuotaDetailsView: NSView {
         material.blendingMode = .behindWindow
         material.state = .active
         addSubview(material)
-        for (index, title) in ["5 小时", "一周"].enumerated() {
+        for index in 0..<2 {
             let top = CGFloat(17 + index * 66)
-            _ = label(title, frame: NSRect(x: 16, y: top, width: 100, height: 17), font: .systemFont(ofSize: 11, weight: .medium), color: .labelColor)
+            let title = index == 0 ? localized("5 小时", "5 hours") : localized("一周", "Week")
+            titles.append(label(title, frame: NSRect(x: 16, y: top, width: 100, height: 17), font: .systemFont(ofSize: 11, weight: .medium), color: .labelColor))
             let value = label("—", frame: NSRect(x: 147, y: top-1, width: 83, height: 19), font: .monospacedDigitSystemFont(ofSize: 13, weight: .semibold), color: .labelColor)
             value.alignment = .right; values.append(value)
             resets.append(label("", frame: NSRect(x: 16, y: top+22, width: 214, height: 15), font: .systemFont(ofSize: 9.5), color: .secondaryLabelColor))
@@ -63,7 +65,7 @@ final class QuotaDetailsView: NSView {
         let separator = NSBox(frame: NSRect(x: 16, y: 246, width: 214, height: 1))
         separator.boxType = .separator; addSubview(separator)
         updated = label("", frame: NSRect(x: 16, y: 257, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
-        automatic = label("自动刷新", frame: NSRect(x: 177, y: 257, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
+        automatic = label(localized("自动刷新", "Auto refresh"), frame: NSRect(x: 177, y: 257, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
         automatic.alignment = .right
         captureBaseFrames()
         applyPresentation()
@@ -109,7 +111,7 @@ final class QuotaDetailsView: NSView {
             let value = showUsed ? quota?.clampedUsedPercent : quota?.remainingPercent
             values[index].stringValue = value.map { "\(Int($0.rounded()))%" } ?? "—"
             values[index].textColor = outdated ? .tertiaryLabelColor : .labelColor
-            resets[index].stringValue = quota?.resetDescription() ?? "重置时间暂不可用"
+            resets[index].stringValue = quota?.resetDescription() ?? localized("重置时间暂不可用", "Reset time unavailable")
             resets[index].textColor = index == 0 && quota?.isResetImminent() == true ? QuotaLevel.caution.color : .secondaryLabelColor
             if index == 0 {
                 forecastLabels[index].stringValue = forecastText(forecasts.fiveHour)
@@ -119,38 +121,38 @@ final class QuotaDetailsView: NSView {
             }
         }
         switch connectionState {
-        case .codexNotInstalled: updated.stringValue = "未找到 Codex"
-        case .authenticationRequired: updated.stringValue = "请先在 Codex 中登录"
-        case .disconnected: updated.stringValue = "连接中断 · 自动重试"
-        case .locating where snapshot == nil: updated.stringValue = "正在查找 Codex…"
+        case .codexNotInstalled: updated.stringValue = localized("未找到 Codex", "Codex was not found")
+        case .authenticationRequired: updated.stringValue = localized("请先在 Codex 中登录", "Please sign in to Codex first")
+        case .disconnected: updated.stringValue = localized("连接中断 · 自动重试", "Connection interrupted · retrying")
+        case .locating where snapshot == nil: updated.stringValue = localized("正在查找 Codex…", "Looking for Codex…")
         default: if let snapshot {
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            let signal = usageAlert.chineseLabel ?? forecastChange?.chineseLabel
-                ?? (snapshot.fiveHour?.isResetImminent() == true ? "5 小时额度即将重置" : nil)
-            updated.stringValue = signal ?? ("最近更新 \(format.string(from: snapshot.fetchedAt))" + (outdated ? " · 已过期" : ""))
+            let signal = usageAlert.localizedLabel ?? forecastChange?.localizedLabel
+                ?? (snapshot.fiveHour?.isResetImminent() == true ? localized("5 小时额度即将重置", "5-hour quota resets soon") : nil)
+            updated.stringValue = signal ?? (localized("最近更新 \(format.string(from: snapshot.fetchedAt))", "Updated \(format.string(from: snapshot.fetchedAt))") + (outdated ? localized(" · 已过期", " · stale") : ""))
             updated.textColor = signal == nil ? .secondaryLabelColor
                 : (usageAlert == .spike ? QuotaLevel.low.color : forecastChange?.level.color ?? QuotaLevel.caution.color)
-        } else { updated.stringValue = "正在读取额度…"; updated.textColor = .secondaryLabelColor }
+        } else { updated.stringValue = localized("正在读取额度…", "Reading quota…"); updated.textColor = .secondaryLabelColor }
         }
-        automatic.stringValue = showUsed ? "已用额度" : "采样 \(forecastSampleCount)"
+        automatic.stringValue = showUsed ? localized("已用额度", "Used quota") : localized("采样 \(forecastSampleCount)", "\(forecastSampleCount) samples")
     }
     private func forecastText(_ forecast: QuotaForecast) -> String {
         guard connectionError == nil, snapshot?.isStale() != true else {
-            return hasForecastSampleData ? "" : "收集中，稍后开始预测"
+            return hasForecastSampleData ? "" : localized("收集中，稍后开始预测", "Collecting; forecast will start shortly")
         }
-        guard hasForecastSampleData else { return "收集中，稍后开始预测" }
+        guard hasForecastSampleData else { return localized("收集中，稍后开始预测", "Collecting; forecast will start shortly") }
         switch forecast.outcome {
         case .collecting: return ""
-        case .unstable: return "● 消耗速率不稳定，暂不预测"
-        case .willNotDeplete: return "本周期内不会用尽"
+        case .unstable: return localized("● 消耗速率不稳定，暂不预测", "● Consumption rate is unstable; no forecast yet")
+        case .willNotDeplete: return localized("本周期内不会用尽", "Will not run out this window")
         case .depletedAt(let date):
-            let confidence = forecast.confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
+            let confidence = forecast.confidence.map { localized(" · 可信度：\($0.chineseLabel)", " · confidence: \($0.englishLabel)") } ?? ""
             if let range = forecast.depletionRange {
-                return "● \(depletionRangeText(range)) 用尽\(confidence)"
+                return "● \(localized("\(depletionRangeText(range)) 用尽", "\(depletionRangeText(range)) to run out"))\(confidence)"
             }
             let format = DateFormatter()
-            format.dateFormat = Calendar.current.isDateInToday(date) ? "预计 HH:mm 用尽" : "预计 M/d HH:mm 用尽"
-            return "● \(format.string(from: date))\(confidence)"
+            format.dateFormat = Calendar.current.isDateInToday(date) ? "HH:mm" : "M/d HH:mm"
+            return "● \(localized("预计 \(format.string(from: date)) 用尽", "Expected to run out at \(format.string(from: date))"))\(confidence)"
         }
     }
     private func depletionRangeText(_ range: DateInterval) -> String {
@@ -158,10 +160,10 @@ final class QuotaDetailsView: NSView {
         let calendar = Calendar.current
         if calendar.isDateInToday(range.start), calendar.isDateInToday(range.end) {
             format.dateFormat = "HH:mm"
-            return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
+            return localized("约 \(format.string(from: range.start))–\(format.string(from: range.end))", "Around \(format.string(from: range.start))–\(format.string(from: range.end))")
         }
         format.dateFormat = "M/d HH:mm"
-        return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
+        return localized("约 \(format.string(from: range.start))–\(format.string(from: range.end))", "Around \(format.string(from: range.start))–\(format.string(from: range.end))")
     }
     private func forecastColor(_ forecast: QuotaForecast) -> NSColor {
         switch forecast.outcome {
@@ -178,7 +180,7 @@ final class QuotaDetailsView: NSView {
     }
     private var guidanceTitle: String? {
         switch connectionState {
-        case .codexNotInstalled: return "安装 Codex"
+        case .codexNotInstalled: return localized("安装 Codex", "Install Codex")
         default: return nil
         }
     }
@@ -193,4 +195,10 @@ final class QuotaDetailsView: NSView {
         addSubview(button); guidanceButton = button
     }
     @objc private func installCodex() { onInstallCodex?() }
+    func refreshLanguage() {
+        guard titles.count == 2 else { return }
+        titles[0].stringValue = localized("5 小时", "5 hours")
+        titles[1].stringValue = localized("一周", "Week")
+        updateLabels(); rebuildGuidance()
+    }
 }

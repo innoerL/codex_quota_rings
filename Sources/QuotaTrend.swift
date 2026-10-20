@@ -106,7 +106,7 @@ enum QuotaTrendRenderer {
         draw(series.fiveHour, color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1), in: chart)
         let hasAny = !series.fiveHour.isEmpty
         if !hasAny {
-            drawText("正在收集趋势数据", at: NSPoint(x: chart.midX, y: chart.midY - 6), centered: true,
+            drawText(localized("正在收集趋势数据", "Collecting trend data"), at: NSPoint(x: chart.midX, y: chart.midY - 6), centered: true,
                      color: .tertiaryLabelColor)
         }
         let tickColor = NSColor.tertiaryLabelColor
@@ -114,20 +114,20 @@ enum QuotaTrendRenderer {
         drawRightText("50%", at: NSPoint(x: chart.minX - 5, y: chart.midY - 4), color: tickColor)
         drawRightText("0%", at: NSPoint(x: chart.minX - 5, y: chart.maxY - 10), color: tickColor)
         drawLegendDot(at: NSPoint(x: rect.minX + 2, y: rect.minY + 3), color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1))
-        drawText("5 小时用量", at: NSPoint(x: rect.minX + 10, y: rect.minY), color: .secondaryLabelColor)
+        drawText(localized("5 小时用量", "5-hour usage"), at: NSPoint(x: rect.minX + 10, y: rect.minY), color: .secondaryLabelColor)
         let range: String
         switch retention {
-        case .session30Minutes: range = "近 30 分钟"
-        case .local5Hours: range = "近 5 小时"
+        case .session30Minutes: range = localized("近 30 分钟", "Last 30 min")
+        case .local5Hours: range = localized("近 5 小时", "Last 5 hours")
         }
         drawRightText(range, at: NSPoint(x: rect.maxX, y: rect.minY), color: .tertiaryLabelColor)
         if let timeRange {
             let formatter = DateFormatter(); formatter.dateFormat = "HH:mm"
             drawText(formatter.string(from: timeRange.start), at: NSPoint(x: chart.minX, y: rect.maxY - 12), color: tickColor)
-            drawRightText("现在 \(formatter.string(from: timeRange.end))", at: NSPoint(x: chart.maxX, y: rect.maxY - 12), color: tickColor)
+            drawRightText(localized("现在 \(formatter.string(from: timeRange.end))", "Now \(formatter.string(from: timeRange.end))"), at: NSPoint(x: chart.maxX, y: rect.maxY - 12), color: tickColor)
         } else {
-            drawText("开始", at: NSPoint(x: chart.minX, y: rect.maxY - 12), color: tickColor)
-            drawRightText("现在", at: NSPoint(x: chart.maxX, y: rect.maxY - 12), color: tickColor)
+            drawText(localized("开始", "Start"), at: NSPoint(x: chart.minX, y: rect.maxY - 12), color: tickColor)
+            drawRightText(localized("现在", "Now"), at: NSPoint(x: chart.maxX, y: rect.maxY - 12), color: tickColor)
         }
     }
 
@@ -160,8 +160,8 @@ enum QuotaTrendRenderer {
         NSBezierPath(ovalIn: NSRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6)).fill()
 
         let formatter = DateFormatter(); formatter.dateFormat = "HH:mm:ss"
-        let rate = hover.hourlyConsumption.map { String(format: "%.1f%%/小时", $0) } ?? "速率收集中"
-        let text = "\(formatter.string(from: hover.sample.timestamp)) · 已用 \(Int(used.rounded()))% · \(rate)"
+        let rate = hover.hourlyConsumption.map { localized(String(format: "%.1f%%/小时", $0), String(format: "%.1f%%/hour", $0)) } ?? localized("速率收集中", "Collecting rate")
+        let text = localized("\(formatter.string(from: hover.sample.timestamp)) · 已用 \(Int(used.rounded()))% · \(rate)", "\(formatter.string(from: hover.sample.timestamp)) · \(Int(used.rounded()))% used · \(rate)")
         let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 8.5, weight: .medium), .foregroundColor: NSColor.labelColor]
         let size = (text as NSString).size(withAttributes: attributes)
         let width = min(max(118, size.width + 12), rect.width - 4)

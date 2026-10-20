@@ -74,11 +74,11 @@ private final class CountingLocator: CodexLocating {
         missingClient.onConnectionState = { state in
             guard state == .codexNotInstalled else { return }
             if locator.calls == 1 {
-                DispatchQueue.main.async { missingClient.refresh() }
+                DispatchQueue.main.async { missingClient.rediscoverCodex() }
             } else {
-                guard locator.calls == 2 else { fail("reconnect must ask the locator again: \(locator.calls)") }
+                guard locator.calls == 2 else { fail("manual rediscovery must ask the locator again: \(locator.calls)") }
                 missingClient.stop()
-                print("PASS: fragmented JSON, quota polling, structured connection states, and rediscovery")
+                print("PASS: fragmented JSON, quota polling, structured connection states, and manual rediscovery")
                 exit(0)
             }
         }

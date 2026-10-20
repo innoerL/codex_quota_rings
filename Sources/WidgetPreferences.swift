@@ -12,6 +12,7 @@ struct WidgetPreferences: Equatable {
     var opacityPreset: WidgetOpacityPreset = .opaque
     var densityPreset: WidgetDensityPreset = .standard
     var ringTheme: WidgetRingTheme = .semantic
+    var language: AppLanguage = .chinese
 
     var positionKey: String { size == .large ? "large" : "small.\(smallLayout.rawValue)" }
 
@@ -22,7 +23,8 @@ struct WidgetPreferences: Equatable {
              historyRetention: historyRetention(from: defaults.string(forKey: "widget.historyRetention")),
              opacityPreset: defaults.string(forKey: "widget.opacityPreset").flatMap(WidgetOpacityPreset.init(rawValue:)) ?? .opaque,
              densityPreset: defaults.string(forKey: "widget.densityPreset").flatMap(WidgetDensityPreset.init(rawValue:)) ?? .standard,
-             ringTheme: defaults.string(forKey: "widget.ringTheme").flatMap(WidgetRingTheme.init(rawValue:)) ?? .semantic)
+             ringTheme: defaults.string(forKey: "widget.ringTheme").flatMap(WidgetRingTheme.init(rawValue:)) ?? .semantic,
+             language: defaults.string(forKey: "widget.language").flatMap(AppLanguage.init(rawValue:)) ?? .chinese)
     }
     func save(to defaults: UserDefaults = .standard) {
         defaults.set(size.rawValue, forKey: "widget.size")
@@ -32,6 +34,7 @@ struct WidgetPreferences: Equatable {
         defaults.set(opacityPreset.rawValue, forKey: "widget.opacityPreset")
         defaults.set(densityPreset.rawValue, forKey: "widget.densityPreset")
         defaults.set(ringTheme.rawValue, forKey: "widget.ringTheme")
+        defaults.set(language.rawValue, forKey: "widget.language")
     }
 
     private static func historyRetention(from rawValue: String?) -> HistoryRetention {

@@ -3,7 +3,7 @@ import AppKit
 final class WidgetMenu: NSObject {
     var preferences: WidgetPreferences
     var onChange: ((WidgetPreferences) -> Void)?
-    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), theme(WidgetRingTheme), history(HistoryRetention) }
+    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), theme(WidgetRingTheme), history(HistoryRetention), language(AppLanguage) }
     init(preferences: WidgetPreferences) { self.preferences = preferences }
 
     func makeMenu() -> NSMenu {
@@ -18,13 +18,14 @@ final class WidgetMenu: NSObject {
             }
             parent.submenu = submenu; parent.isEnabled = enabled; menu.addItem(parent)
         }
-        group("大小", choices: [("大", .size(.large), preferences.size == .large), ("小", .size(.small), preferences.size == .small)])
-        group("小组件布局", choices: [("竖向", .layout(.vertical), preferences.smallLayout == .vertical), ("横向", .layout(.horizontal), preferences.smallLayout == .horizontal)], enabled: preferences.size == .small)
-        group("显示范围", choices: [("聚焦 Codex 时显示", .scope(.focusCodex), preferences.displayScope == .focusCodex), ("一直显示", .scope(.always), preferences.displayScope == .always), ("聚焦桌面时显示", .scope(.focusDesktop), preferences.displayScope == .focusDesktop)])
-        group("透明度", choices: [("不透明", .opacity(.opaque), preferences.opacityPreset == .opaque), ("半透明", .opacity(.translucent), preferences.opacityPreset == .translucent), ("轻透", .opacity(.light), preferences.opacityPreset == .light)])
-        group("紧凑度", choices: [("标准", .density(.standard), preferences.densityPreset == .standard), ("紧凑", .density(.compact), preferences.densityPreset == .compact), ("极简", .density(.minimal), preferences.densityPreset == .minimal)])
-        group("环形配色", choices: [("额度状态", .theme(.semantic), preferences.ringTheme == .semantic), ("石墨", .theme(.graphite), preferences.ringTheme == .graphite), ("暖色", .theme(.warm), preferences.ringTheme == .warm), ("系统强调色", .theme(.systemAccent), preferences.ringTheme == .systemAccent)])
-        group("趋势记录", choices: [("仅本次 · 30 分钟", .history(.session30Minutes), preferences.historyRetention == .session30Minutes), ("保留 5 小时", .history(.local5Hours), preferences.historyRetention == .local5Hours)])
+        group(localized("大小", "Size"), choices: [(localized("大", "Large"), .size(.large), preferences.size == .large), (localized("小", "Small"), .size(.small), preferences.size == .small)])
+        group(localized("小组件布局", "Small layout"), choices: [(localized("竖向", "Vertical"), .layout(.vertical), preferences.smallLayout == .vertical), (localized("横向", "Horizontal"), .layout(.horizontal), preferences.smallLayout == .horizontal)], enabled: preferences.size == .small)
+        group(localized("显示范围", "Visibility"), choices: [(localized("聚焦 Codex 时显示", "Show with Codex"), .scope(.focusCodex), preferences.displayScope == .focusCodex), (localized("一直显示", "Always show"), .scope(.always), preferences.displayScope == .always), (localized("聚焦桌面时显示", "Show on desktop"), .scope(.focusDesktop), preferences.displayScope == .focusDesktop)])
+        group(localized("透明度", "Opacity"), choices: [(localized("不透明", "Opaque"), .opacity(.opaque), preferences.opacityPreset == .opaque), (localized("半透明", "Translucent"), .opacity(.translucent), preferences.opacityPreset == .translucent), (localized("轻透", "Light"), .opacity(.light), preferences.opacityPreset == .light)])
+        group(localized("紧凑度", "Density"), choices: [(localized("标准", "Standard"), .density(.standard), preferences.densityPreset == .standard), (localized("紧凑", "Compact"), .density(.compact), preferences.densityPreset == .compact), (localized("极简", "Minimal"), .density(.minimal), preferences.densityPreset == .minimal)])
+        group(localized("环形配色", "Ring colors"), choices: [(localized("额度状态", "Quota status"), .theme(.semantic), preferences.ringTheme == .semantic), (localized("石墨", "Graphite"), .theme(.graphite), preferences.ringTheme == .graphite), (localized("暖色", "Warm"), .theme(.warm), preferences.ringTheme == .warm), (localized("系统强调色", "System accent"), .theme(.systemAccent), preferences.ringTheme == .systemAccent)])
+        group(localized("趋势记录", "Trend history"), choices: [(localized("仅本次 · 30 分钟", "Session only · 30 min"), .history(.session30Minutes), preferences.historyRetention == .session30Minutes), (localized("保留 5 小时", "Keep 5 hours"), .history(.local5Hours), preferences.historyRetention == .local5Hours)])
+        group(localized("界面语言", "Language"), choices: AppLanguage.allCases.map { ($0.menuLabel, .language($0), preferences.language == $0) })
         return menu
     }
     @objc private func selectChoice(_ sender: NSMenuItem) {
@@ -37,6 +38,7 @@ final class WidgetMenu: NSObject {
         case .density(let density): preferences.densityPreset = density
         case .theme(let theme): preferences.ringTheme = theme
         case .history(let retention): preferences.historyRetention = retention
+        case .language(let language): preferences.language = language
         }
         onChange?(preferences)
     }

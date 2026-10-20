@@ -43,9 +43,9 @@ final class LargeQuotaView: QuotaView {
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
         NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.97).setFill(); card.fill()
         NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.11).setStroke(); card.lineWidth = 1; card.stroke()
-        label(showUsed ? "已用额度" : "剩余额度", x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
-        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: "5 小时", radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
-        ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: "一周", radius: metrics.largeRingRadius)
+        label(showUsed ? localized("已用额度", "Used quota") : localized("剩余额度", "Remaining quota"), x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
+        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: localized("5 小时", "5 hours"), radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+        ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: localized("一周", "Week"), radius: metrics.largeRingRadius)
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {
             QuotaLevel.caution.color.withAlphaComponent(0.7).setFill()
@@ -54,19 +54,19 @@ final class LargeQuotaView: QuotaView {
         let status: String
         let statusColor: NSColor
         switch connectionState {
-        case .codexNotInstalled: status = "未找到 Codex"; statusColor = .secondaryLabelColor
-        case .authenticationRequired: status = "请先在 Codex 中登录"; statusColor = .secondaryLabelColor
-        case .disconnected: status = "连接中断 · 自动重试"; statusColor = .secondaryLabelColor
-        case .locating where snapshot == nil: status = "正在查找 Codex…"; statusColor = .secondaryLabelColor
+        case .codexNotInstalled: status = localized("未找到 Codex", "Codex was not found"); statusColor = .secondaryLabelColor
+        case .authenticationRequired: status = localized("请先在 Codex 中登录", "Please sign in to Codex first"); statusColor = .secondaryLabelColor
+        case .disconnected: status = localized("连接中断 · 自动重试", "Connection interrupted · retrying"); statusColor = .secondaryLabelColor
+        case .locating where snapshot == nil: status = localized("正在查找 Codex…", "Looking for Codex…"); statusColor = .secondaryLabelColor
         default:
             if usageAlert == .spike {
-                status = "用量突然升高"; statusColor = QuotaLevel.low.color
+                status = localized("用量突然升高", "Usage rose sharply"); statusColor = QuotaLevel.low.color
             } else if let forecastChange {
-                status = forecastChange.chineseLabel; statusColor = forecastChange.level.color
+                status = forecastChange.localizedLabel; statusColor = forecastChange.level.color
             } else if snapshot?.fiveHour?.isResetImminent() == true {
-                status = "5 小时额度即将重置"; statusColor = QuotaLevel.caution.color
+                status = localized("5 小时额度即将重置", "5-hour quota resets soon"); statusColor = QuotaLevel.caution.color
             } else {
-                status = snapshot == nil ? "正在读取额度…" : stale ? "数据可能已过期" : "每 30 秒自动更新"
+                status = snapshot == nil ? localized("正在读取额度…", "Reading quota…") : stale ? localized("数据可能已过期", "Data may be stale") : localized("每 30 秒自动更新", "Updates every 30 seconds")
                 statusColor = .secondaryLabelColor
             }
         }
@@ -79,13 +79,13 @@ final class LargeQuotaView: QuotaView {
         if isExpanded {
             NSColor.white.withAlphaComponent(0.09).setFill()
             NSRect(x: 1, y: metrics.largeCollapsed.height - scale, width: bounds.width-2, height: 0.5 * scale).fill()
-            for (index, item) in [("5 小时", snapshot?.fiveHour, forecasts.fiveHour), ("一周", snapshot?.week, forecasts.week)].enumerated() {
+            for (index, item) in [(localized("5 小时", "5 hours"), snapshot?.fiveHour, forecasts.fiveHour), (localized("一周", "Week"), snapshot?.week, forecasts.week)].enumerated() {
                 let y = CGFloat(191 + index * 66) * scale
                 label(item.0, x: 16 * scale, y: y, size: 13 * scale, weight: .medium)
                 let value = showUsed ? item.1?.clampedUsedPercent : item.1?.remainingPercent
                 label(value.map { "\(Int($0.rounded()))%" } ?? "—", x: 212 * scale, y: y, size: 13 * scale, weight: .semibold, color: stale ? .tertiaryLabelColor : .labelColor)
                 let resetImminent = index == 0 && item.1?.isResetImminent() == true
-                label(item.1?.resetDescription() ?? "重置时间暂不可用", x: 16 * scale, y: y + 23 * scale, size: 10.5 * scale, weight: resetImminent ? .medium : .regular, color: resetImminent ? QuotaLevel.caution.color : .secondaryLabelColor)
+                label(item.1?.resetDescription() ?? localized("重置时间暂不可用", "Reset time unavailable"), x: 16 * scale, y: y + 23 * scale, size: 10.5 * scale, weight: resetImminent ? .medium : .regular, color: resetImminent ? QuotaLevel.caution.color : .secondaryLabelColor)
                 if index == 0 {
                     label(forecastText(item.2), x: 16 * scale, y: y + 41 * scale, size: 10.5 * scale, weight: .medium, color: forecastColor(item.2))
                 }
@@ -93,7 +93,7 @@ final class LargeQuotaView: QuotaView {
             NSColor.white.withAlphaComponent(0.04).setFill()
             NSBezierPath(roundedRect: NSRect(x: 12 * scale, y: 286 * scale, width: 256 * scale, height: 27 * scale),
                          xRadius: 7 * scale, yRadius: 7 * scale).fill()
-            label(forecasts.fiveHour.chineseExplanation, x: 16 * scale, y: 292 * scale, size: 9.5 * scale,
+            label(forecasts.fiveHour.explanation, x: 16 * scale, y: 292 * scale, size: 9.5 * scale,
                   color: .secondaryLabelColor)
             let trendRect = NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale)
             QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention, in: trendRect)
@@ -104,15 +104,15 @@ final class LargeQuotaView: QuotaView {
             }
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
             let footer = snapshot.map {
-                let credit = $0.resetCreditCount.map { " · 重置卡 × \($0)" } ?? ""
-                return "最近更新 \(format.string(from: $0.fetchedAt)) · 预测采样 \(forecastSampleCount) 个\(credit)"
-            } ?? "等待额度数据"
+                let credit = $0.resetCreditCount.map { localized(" · 重置卡 × \($0)", " · reset cards × \($0)") } ?? ""
+                return localized("最近更新 \(format.string(from: $0.fetchedAt)) · 预测采样 \(forecastSampleCount) 个\(credit)", "Updated \(format.string(from: $0.fetchedAt)) · \(forecastSampleCount) forecast samples\(credit)")
+            } ?? localized("等待额度数据", "Waiting for quota data")
             label(footer, x: 16 * scale, y: 432 * scale, size: 10 * scale, color: .secondaryLabelColor)
         }
     }
     private var guidanceTitle: String? {
         switch connectionState {
-        case .codexNotInstalled: return "安装 Codex"
+        case .codexNotInstalled: return localized("安装 Codex", "Install Codex")
         default: return nil
         }
     }

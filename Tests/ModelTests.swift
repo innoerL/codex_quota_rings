@@ -25,6 +25,9 @@ import Foundation
         expect(QuotaWindow.resetCountdown(seconds: 295200) == "3 天 10 小时后重置", "multi-day countdown matches reference")
         expect(QuotaWindow.resetCountdown(seconds: 0) == "等待重置", "expired time never pretends quota reset")
         expect(QuotaWindow.resetCountdown(seconds: 35) == "不到 1 分钟后重置", "sub-minute countdown is clear")
+        AppLanguageManager.current = .english
+        expect(QuotaWindow.resetCountdown(seconds: 35) == "Resets in under 1 minute", "English language setting changes reset copy")
+        AppLanguageManager.current = .chinese
         let mapped = try parse(#"{"rateLimits":{"primary":{"usedPercent":5,"windowDurationMins":300}},"rateLimitsByLimitId":{"codex":{"secondary":{"usedPercent":42,"windowDurationMins":300},"primary":{"usedPercent":60,"windowDurationMins":10080}}}}"#)
         expect(mapped.fiveHour?.remainingPercent == 58, "Codex map takes priority; match duration rather than primary slot")
         expect(mapped.week?.remainingPercent == 40, "swapped weekly window remains correct")

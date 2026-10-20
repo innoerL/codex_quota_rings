@@ -16,6 +16,11 @@ import AppKit
                      "minimal density must resize the compact widget without a transform")
         compact.contentOpacity = WidgetOpacityPreset.light.alpha
         precondition(compact.contentOpacity == 0.68, "compact widget must retain the selected opacity")
+        AppLanguageManager.current = .english
+        compact.snapshot = sample; compact.updateTooltip()
+        precondition(compact.toolTip?.contains("remaining quota") == true,
+                     "English language setting must refresh compact widget copy")
+        AppLanguageManager.current = .chinese
         compact.lowQuotaContrastMode = true
         precondition(compact.toolTip?.contains("低额度高对比模式") == true,
                      "low quota mode must expose its high-contrast state to assistive text")
@@ -116,6 +121,10 @@ import AppKit
         precondition(detail.preferredContentSize.width == 246 * 0.88 && detail.contentOpacity == 0.82,
                      "detail panel must share presentation metrics and opacity")
         detail.snapshot = sample; detail.forecasts = forecasts; detail.hasForecastSampleData = true; detail.forecastSampleCount = 6
+        AppLanguageManager.current = .english; detail.refreshLanguage()
+        precondition(detail.subviews.compactMap { $0 as? NSTextField }.contains(where: { $0.stringValue == "5 hours" }),
+                     "English language setting must refresh detail headings")
+        AppLanguageManager.current = .chinese; detail.refreshLanguage()
         let forecastFields = detail.subviews.compactMap { $0 as? NSTextField }
             .filter { $0.stringValue.contains("约") && $0.stringValue.contains("用尽") }
         precondition(forecastFields.count == 1, "only the five-hour quota should show a depletion forecast")

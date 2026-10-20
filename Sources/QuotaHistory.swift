@@ -74,7 +74,7 @@ final class QuotaHistoryStore {
                     try removeItem(fileURL)
                 }
             } catch {
-                persistenceError = "无法删除本地趋势记录"
+                persistenceError = localized("无法删除本地趋势记录", "Unable to delete local trend history")
             }
         }
         return storedSamples
@@ -97,7 +97,7 @@ final class QuotaHistoryStore {
             storedSamples = try JSONDecoder().decode([QuotaHistorySample].self, from: data)
         } catch {
             storedSamples = []
-            persistenceError = "本地趋势记录已损坏，已重新开始记录"
+            persistenceError = localized("本地趋势记录已损坏，已重新开始记录", "Local trend history was corrupted and has been restarted")
             try? removeItem(fileURL)
         }
     }
@@ -110,7 +110,7 @@ final class QuotaHistoryStore {
             try data.write(to: fileURL, options: .atomic)
             persistenceError = nil
         } catch {
-            persistenceError = "无法保存本地趋势记录"
+            persistenceError = localized("无法保存本地趋势记录", "Unable to save local trend history")
         }
     }
 
@@ -119,7 +119,7 @@ final class QuotaHistoryStore {
         do {
             try removeItem(fileURL)
         } catch {
-            persistenceError = "无法删除本地趋势记录"
+            persistenceError = localized("无法删除本地趋势记录", "Unable to delete local trend history")
         }
     }
 

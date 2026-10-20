@@ -4,10 +4,10 @@ enum QuotaUsageAlert: Equatable {
     case none
     case spike
 
-    var chineseLabel: String? {
+    var localizedLabel: String? {
         switch self {
         case .none: return nil
-        case .spike: return "用量突然升高"
+        case .spike: return localized("用量突然升高", "Usage rose sharply")
         }
     }
 }

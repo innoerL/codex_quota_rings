@@ -36,6 +36,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.defaults = defaults; self.client = client
         let loaded = WidgetPreferences.load(from: defaults)
         self.preferences = loaded
+        AppLanguageManager.current = loaded.language
         let defaultHistoryURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Quota Rings", isDirectory: true)
             .appendingPathComponent("quota-history.json")
@@ -51,7 +52,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         NSApp.setActivationPolicy(.accessory)
         panel = NSPanel(contentRect: view.bounds, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.title = "Codex 额度双环"
+        panel.title = localized("Codex 额度双环", "Codex Quota Rings")
         panel.backgroundColor = .clear; panel.isOpaque = false; panel.hasShadow = false
         panel.level = .floating; panel.hidesOnDeactivate = false; panel.isMovableByWindowBackground = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -67,7 +68,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             saved.set(2, forKey: "compactLayoutVersion")
         }
         detailsPanel = NSPanel(contentRect: details.bounds, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        detailsPanel.title = "额度详情"
+        detailsPanel.title = localized("额度详情", "Quota details")
         detailsPanel.backgroundColor = .clear; detailsPanel.isOpaque = false; detailsPanel.hasShadow = true
         detailsPanel.level = .floating; detailsPanel.hidesOnDeactivate = false
         detailsPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -95,8 +96,8 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         applyPresentation()
         configureLayout(restorePosition: true)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "circle.dashed", accessibilityDescription: "Codex 额度")
-        statusItem.button?.toolTip = "Codex 额度双环"
+        statusItem.button?.image = NSImage(systemSymbolName: "circle.dashed", accessibilityDescription: localized("Codex 额度", "Codex quota"))
+        statusItem.button?.toolTip = localized("Codex 额度双环", "Codex Quota Rings")
         statusItem.button?.target = self; statusItem.button?.action = #selector(showMenu)
         client.onChange = { [weak self] snapshot, error in
             self?.applyQuota(snapshot: snapshot, error: error)
@@ -168,15 +169,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         func action(_ text: String, _ selector: Selector) -> NSMenuItem {
             let item = NSMenuItem(title: text, action: selector, keyEquivalent: ""); item.target = self; menu.addItem(item); return item
         }
-        info("Codex \(view.showUsed ? "已用" : "剩余")额度")
+        info(localized("Codex \(view.showUsed ? "已用" : "剩余")额度", "Codex \(view.showUsed ? "used" : "remaining") quota"))
         if let snapshot = view.snapshot {
             let format = DateFormatter(); format.dateFormat = "MM-dd HH:mm:ss"
             info("更新：\(format.string(from: snapshot.fetchedAt))")
-            for (name, window) in [("5小时", snapshot.fiveHour), ("一周", snapshot.week)] {
-                if let reset = window?.resetsAt { info("\(name)重置：\(format.string(from: Date(timeIntervalSince1970: reset)))") }
+            for (name, window) in [(localized("5小时", "5 hours"), snapshot.fiveHour), (localized("一周", "Week"), snapshot.week)] {
+                if let reset = window?.resetsAt { info(localized("\(name)重置：\(format.string(from: Date(timeIntervalSince1970: reset)))", "\(name) reset: \(format.string(from: Date(timeIntervalSince1970: reset)))")) }
             }
             if let resetCreditCount = snapshot.resetCreditCount {
-                let title = "可用重置卡 × \(resetCreditCount)"
+                let title = localized("可用重置卡 × \(resetCreditCount)", "Reset cards available × \(resetCreditCount)")
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 item.isEnabled = false
                 if resetCreditCount > 0 { item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: QuotaLevel.caution.color]) }
@@ -185,18 +186,19 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if let error = view.connectionError { info(error) }
         if let error = historyStore.persistenceError { info(error) }
-        info("每30秒刷新 · 点击查看详情")
+        info(localized("每30秒刷新 · 点击查看详情", "Refreshes every 30 seconds · click for details"))
         menu.addItem(.separator())
-        _ = action("额度详情", #selector(toggleDetails))
+        _ = action(localized("额度详情", "Quota details"), #selector(toggleDetails))
+        _ = action(localized("重新检查 Codex", "Recheck Codex"), #selector(rediscoverCodex))
         switch connectionState {
-        case .codexNotInstalled: _ = action("安装 Codex", #selector(installCodex))
+        case .codexNotInstalled: _ = action(localized("安装 Codex", "Install Codex"), #selector(installCodex))
         default: break
         }
-        let used = action("显示已用百分比", #selector(toggleUsed)); used.state = view.showUsed ? .on : .off
+        let used = action(localized("显示已用百分比", "Show used percentage"), #selector(toggleUsed)); used.state = view.showUsed ? .on : .off
         let options = widgetMenu.makeMenu()
         for item in options.items { options.removeItem(item); menu.addItem(item) }
         menu.addItem(.separator())
-        _ = action("退出额度双环", #selector(quit))
+        _ = action(localized("退出额度双环", "Quit Quota Rings"), #selector(quit))
         return menu
     }
     @objc private func showMenu() {
@@ -216,7 +218,11 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let layoutChanged = preferences.positionKey != selection.positionKey
         if structuralChange { hideDetails(); largeView.isExpanded = false }
         preferences = selection; preferences.save(to: defaults)
+        AppLanguageManager.current = selection.language
         widgetMenu.preferences = selection
+        panel?.title = localized("Codex 额度双环", "Codex Quota Rings")
+        detailsPanel?.title = localized("额度详情", "Quota details")
+        statusItem?.button?.toolTip = localized("Codex 额度双环", "Codex Quota Rings")
         applyPresentation()
         if previous.historyRetention != selection.historyRetention {
             _ = historyStore.setRetention(selection.historyRetention, at: Date())
@@ -228,6 +234,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if detailsPanel.isVisible { resizeDetailsPanel() }
         }
         refreshVisibility()
+        view.updateTooltip(); largeView.updateTooltip(); details.refreshLanguage()
     }
     private func configureLayout(restorePosition: Bool) {
         guard let panel else { return }
@@ -477,6 +484,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     @objc private func woke() { client.stop(); client.start() }
+    @objc private func rediscoverCodex() { client.rediscoverCodex() }
     @objc private func installCodex() {
         guard let url = URL(string: "https://chatgpt.com/download/") else { return }
         NSWorkspace.shared.open(url)

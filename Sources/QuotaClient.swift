@@ -37,6 +37,16 @@ final class QuotaClient {
         retryTimer?.invalidate(); retryTimer = nil
         disconnect()
     }
+    /// Repeat the same automatic discovery used on first launch. This is useful
+    /// after the user moves or reinstalls Codex without requiring any path setup.
+    func rediscoverCodex() {
+        guard !stopped else { return }
+        retryTimer?.invalidate(); retryTimer = nil
+        disconnect()
+        codexApplicationURL = nil
+        onConnectionState?(.locating)
+        connect()
+    }
     func refresh() {
         guard !stopped else { return }
         guard let process, process.isRunning, initialized else {
@@ -51,7 +61,7 @@ final class QuotaClient {
         let token = generation
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
             guard let self, self.generation == token, self.pendingID == id else { return }
-            self.fail("额度请求超时，将自动重连")
+            self.fail(localized("额度请求超时，将自动重连", "Quota request timed out; reconnecting automatically"))
         }
     }
     private func connect() {
@@ -65,7 +75,7 @@ final class QuotaClient {
         }
         guard let location else {
             codexApplicationURL = nil
-            reportUnavailable(.codexNotInstalled, message: "未找到 Codex，将自动重试")
+            reportUnavailable(.codexNotInstalled, message: localized("未找到 Codex，将自动重试", "Codex was not found; retrying automatically"))
             return
         }
         codexApplicationURL = location.applicationURL
@@ -87,14 +97,14 @@ final class QuotaClient {
             let bytes = handle.availableData
             DispatchQueue.main.async {
                 guard let self, self.generation == token, !self.stopped else { return }
-                if bytes.isEmpty { self.fail("额度连接已断开，将自动重连") }
+                if bytes.isEmpty { self.fail(localized("额度连接已断开，将自动重连", "Quota connection closed; reconnecting automatically")) }
                 else { self.consume(bytes) }
             }
         }
         child.terminationHandler = { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self, self.generation == token, !self.stopped else { return }
-                self.fail("Codex 连接已结束，将自动重连")
+                self.fail(localized("Codex 连接已结束，将自动重连", "Codex connection ended; reconnecting automatically"))
             }
         }
         do {
@@ -102,9 +112,9 @@ final class QuotaClient {
             send(["id": 1, "method": "initialize", "params": ["clientInfo": ["name": "quota_rings", "title": "Quota Rings", "version": "1.0.0"]]])
             DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
                 guard let self, self.generation == token, !self.initialized else { return }
-                self.fail("Codex 连接超时，将自动重连")
+                self.fail(localized("Codex 连接超时，将自动重连", "Codex connection timed out; reconnecting automatically"))
             }
-        } catch { fail("无法启动 Codex 额度连接") }
+        } catch { fail(localized("无法启动 Codex 额度连接", "Unable to start the Codex quota connection")) }
     }
     private func send(_ message: [String: Any]) {
         guard let input else { return }
@@ -112,11 +122,11 @@ final class QuotaClient {
             var bytes = try JSONSerialization.data(withJSONObject: message)
             bytes.append(10)
             try input.write(contentsOf: bytes)
-        } catch { fail("无法发送额度查询，将自动重连") }
+        } catch { fail(localized("无法发送额度查询，将自动重连", "Unable to send quota request; reconnecting automatically")) }
     }
     private func consume(_ bytes: Data) {
         buffer.append(bytes)
-        guard buffer.count <= 4 * 1024 * 1024 else { fail("额度响应过大，连接已重置"); return }
+        guard buffer.count <= 4 * 1024 * 1024 else { fail(localized("额度响应过大，连接已重置", "Quota response was too large; connection reset")); return }
         while let newline = buffer.firstIndex(of: 10) {
             let line = buffer.subdata(in: buffer.startIndex..<newline)
             buffer.removeSubrange(buffer.startIndex...newline)
@@ -126,7 +136,7 @@ final class QuotaClient {
                 if id == 1 {
                     guard object["result"] != nil else {
                         if isAuthenticationError(object) { requireAuthentication() }
-                        else { fail("Codex 初始化失败，将自动重试") }
+                        else { fail(localized("Codex 初始化失败，将自动重试", "Codex initialization failed; retrying automatically")) }
                         return
                     }
                     initialized = true
@@ -137,7 +147,7 @@ final class QuotaClient {
                     pendingID = nil
                     guard let result = object["result"] as? [String: Any] else {
                         if isAuthenticationError(object) { requireAuthentication() }
-                        else { fail("无法读取额度，将自动重试") }
+                        else { fail(localized("无法读取额度，将自动重试", "Unable to read quota; retrying automatically")) }
                         return
                     }
                     accept(result)
@@ -147,7 +157,7 @@ final class QuotaClient {
                 accept(result)
             } else if object["method"] as? String == "account/updated" {
                 snapshot = nil
-                onChange?(nil, "账户已变化，正在重新读取")
+                onChange?(nil, localized("账户已变化，正在重新读取", "Account changed; reading quota again"))
                 refresh()
             }
         }
@@ -157,7 +167,7 @@ final class QuotaClient {
             let data = try JSONSerialization.data(withJSONObject: result)
             snapshot = try QuotaSnapshot.decode(data)
             onChange?(snapshot, nil)
-        } catch { fail("额度数据格式异常，将自动重试") }
+        } catch { fail(localized("额度数据格式异常，将自动重试", "Quota data format was invalid; retrying automatically")) }
     }
     private func fail(_ message: String) {
         guard !stopped else { return }
@@ -168,7 +178,7 @@ final class QuotaClient {
     }
     private func requireAuthentication() {
         guard !stopped else { return }
-        let message = "请先在 Codex 中登录"
+        let message = localized("请先在 Codex 中登录", "Please sign in to Codex first")
         disconnect()
         onConnectionState?(.authenticationRequired)
         onChange?(snapshot, message)

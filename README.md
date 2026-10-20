@@ -12,6 +12,8 @@ The packaged app is zero-configuration. Download or receive `Quota-Rings.app.zip
 
 Open Codex and sign in normally. If Codex is absent, the expanded widget shows **Install Codex**. Discovery and connection retry automatically.
 
+If Codex is moved or reinstalled, choose **Recheck Codex** from the widget or menu-bar menu. It repeats the same automatic discovery without asking for a path or any Terminal command.
+
 The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macOS 12 as the minimum app target when a compatible Codex installation is available. This community build is ad-hoc signed rather than notarized. If Gatekeeper blocks it, use System Settings → Privacy & Security → Open Anyway after confirming where you obtained the archive.
 
 ## Features
@@ -37,7 +39,7 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 
 ## Controls
 
-Right-click the widget or use its menu bar ring to choose size, compact orientation, visibility, opacity, density, whether to show used quota, and trend retention. Drag the widget to move it. Each layout keeps its own position.
+Right-click the widget or use its menu bar ring to choose size, compact orientation, visibility, opacity, density, language, whether to show used quota, and trend retention. Drag the widget to move it. Each layout keeps its own position.
 
 The Simplified Chinese menu offers:
 
@@ -50,6 +52,7 @@ The Simplified Chinese menu offers:
 | 紧凑度 | 标准（100%）/ 紧凑（88%）/ 极简（76%） |
 | 环形配色 | 额度状态 / 石墨 / 暖色 / 系统强调色 |
 | 趋势记录 | 仅本次 · 30 分钟 / 保留 5 小时 |
+| 界面语言 | 中文 / English |
 
 ## Privacy
 

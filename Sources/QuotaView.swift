@@ -155,8 +155,8 @@ class QuotaView: NSView {
             NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.16 : 0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         let scale = metrics.scale
-        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: "5 小时", radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
-        ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: "一周", radius: metrics.compactRingRadius)
+        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: localized("5 小时", "5 hours"), radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+        ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: localized("一周", "Week"), radius: metrics.compactRingRadius)
         if connectionError != nil || snapshot?.isStale() == true {
             QuotaLevel.caution.color.setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()
@@ -167,20 +167,21 @@ class QuotaView: NSView {
         }
     }
     func updateTooltip() {
-        var lines = ["Codex \(showUsed ? "已用" : "剩余")额度 · 每30秒刷新", "点击查看详情 · 拖动移动 · 右键菜单"]
+        var lines = [localized("Codex \(showUsed ? "已用" : "剩余")额度 · 每30秒刷新", "Codex \(showUsed ? "used" : "remaining") quota · refreshes every 30 seconds"),
+                     localized("点击查看详情 · 拖动移动 · 右键菜单", "Click for details · drag to move · right-click for menu")]
         if let snapshot {
             let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm:ss"
             lines.append("更新：\(formatter.string(from: snapshot.fetchedAt))")
         }
-        if let alert = usageAlert.chineseLabel { lines.append(alert) }
-        if let forecastChange { lines.append(forecastChange.chineseLabel) }
-        if snapshot?.fiveHour?.isResetImminent() == true { lines.append("5 小时额度即将重置") }
-        if lowQuotaContrastMode { lines.append("低额度高对比模式已开启") }
+        if let alert = usageAlert.localizedLabel { lines.append(alert) }
+        if let forecastChange { lines.append(forecastChange.localizedLabel) }
+        if snapshot?.fiveHour?.isResetImminent() == true { lines.append(localized("5 小时额度即将重置", "5-hour quota resets soon")) }
+        if lowQuotaContrastMode { lines.append(localized("低额度高对比模式已开启", "Low-quota high-contrast mode is on")) }
         switch connectionState {
-        case .codexNotInstalled: lines.append("未找到 Codex · 打开详情可安装")
-        case .authenticationRequired: lines.append("请先在 Codex 中登录")
+        case .codexNotInstalled: lines.append(localized("未找到 Codex · 打开详情可安装", "Codex was not found · open details to install"))
+        case .authenticationRequired: lines.append(localized("请先在 Codex 中登录", "Please sign in to Codex first"))
         case .disconnected(let message): lines.append(message)
-        case .locating: if snapshot == nil { lines.append("正在查找 Codex…") }
+        case .locating: if snapshot == nil { lines.append(localized("正在查找 Codex…", "Looking for Codex…")) }
         case .ready: if let connectionError { lines.append(connectionError) }
         }
         toolTip = lines.joined(separator: "\n")
@@ -188,29 +189,30 @@ class QuotaView: NSView {
         setAccessibilityLabel(lines.joined(separator: ", "))
         let values = [snapshot?.fiveHour, snapshot?.week].map { window -> String in
             let value = showUsed ? window?.clampedUsedPercent : window?.remainingPercent
-            return value.map { "\(Int($0.rounded()))%" } ?? "暂无数据"
+            return value.map { "\(Int($0.rounded()))%" } ?? localized("暂无数据", "No data")
         }
-        setAccessibilityValue("5小时 \(values[0])，一周 \(values[1])")
+        setAccessibilityValue(localized("5小时 \(values[0])，一周 \(values[1])", "5 hours \(values[0]), week \(values[1])"))
     }
     func forecastText(_ forecast: QuotaForecast, at now: Date = Date()) -> String {
         guard connectionError == nil, snapshot?.isStale(at: now) != true else {
-            return hasForecastSampleData ? "" : "收集中，稍后开始预测"
+            return hasForecastSampleData ? "" : localized("收集中，稍后开始预测", "Collecting; forecast will start shortly")
         }
-        guard hasForecastSampleData else { return "收集中，稍后开始预测" }
+        guard hasForecastSampleData else { return localized("收集中，稍后开始预测", "Collecting; forecast will start shortly") }
         switch forecast.outcome {
         case .collecting: return ""
         case .unstable:
-            return "● 消耗速率不稳定，暂不预测"
+            return localized("● 消耗速率不稳定，暂不预测", "● Consumption rate is unstable; no forecast yet")
         case .willNotDeplete:
-            return "本周期内不会用尽"
+            return localized("本周期内不会用尽", "Will not run out this window")
         case .depletedAt(let date):
-            let confidence = forecast.confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
+            let confidence = forecast.confidence.map { localized(" · 可信度：\($0.chineseLabel)", " · confidence: \($0.englishLabel)") } ?? ""
             if let range = forecast.depletionRange {
                 return "● \(depletionRangeText(range, at: now)) 用尽\(confidence)"
             }
             let format = DateFormatter()
-            format.dateFormat = Calendar.current.isDate(date, inSameDayAs: now) ? "预计 HH:mm 用尽" : "预计 M/d HH:mm 用尽"
-            return "● \(format.string(from: date))\(confidence)"
+            format.dateFormat = Calendar.current.isDate(date, inSameDayAs: now) ? "HH:mm" : "M/d HH:mm"
+            let time = format.string(from: date)
+            return "● \(localized("预计 \(time) 用尽", "Expected to run out at \(time)"))\(confidence)"
         }
     }
     private func depletionRangeText(_ range: DateInterval, at now: Date) -> String {
@@ -218,10 +220,10 @@ class QuotaView: NSView {
         let calendar = Calendar.current
         if calendar.isDate(range.start, inSameDayAs: now), calendar.isDate(range.end, inSameDayAs: now) {
             format.dateFormat = "HH:mm"
-            return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
+            return localized("约 \(format.string(from: range.start))–\(format.string(from: range.end))", "Around \(format.string(from: range.start))–\(format.string(from: range.end))")
         }
         format.dateFormat = "M/d HH:mm"
-        return "约 \(format.string(from: range.start))–\(format.string(from: range.end))"
+        return localized("约 \(format.string(from: range.start))–\(format.string(from: range.end))", "Around \(format.string(from: range.start))–\(format.string(from: range.end))")
     }
     func forecastColor(_ forecast: QuotaForecast) -> NSColor {
         switch forecast.outcome {

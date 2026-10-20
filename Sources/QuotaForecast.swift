@@ -19,6 +19,13 @@ enum ForecastConfidence: Equatable {
         case .low: return "低"
         }
     }
+    var englishLabel: String {
+        switch self {
+        case .high: return "High"
+        case .medium: return "Medium"
+        case .low: return "Low"
+        }
+    }
 
     /// Relative uncertainty applied to the observed consumption rate. A faster
     /// plausible rate gives the early bound and a slower one gives the late bound.
@@ -54,15 +61,16 @@ struct QuotaForecast: Equatable {
     static let collecting = QuotaForecast(outcome: .collecting, confidence: nil)
     static let unstable = QuotaForecast(outcome: .unstable, confidence: nil)
 
-    var chineseExplanation: String {
-        guard sampleCount > 0 else { return "预测依据：等待额度采样" }
+    var explanation: String {
+        guard sampleCount > 0 else { return localized("预测依据：等待额度采样", "Forecast basis: waiting for quota samples") }
         let minutes = max(0, Int((observedSpan / 60).rounded(.down)))
-        let span = minutes > 0 ? "\(minutes) 分钟" : "不足 1 分钟"
+        let span = minutes > 0 ? localized("\(minutes) 分钟", "\(minutes) min") : localized("不足 1 分钟", "under 1 min")
         guard let hourlyConsumption, hourlyConsumption > 0.01 else {
-            return "预测依据：\(sampleCount) 个采样 · \(span) · 等待消耗数据"
+            return localized("预测依据：\(sampleCount) 个采样 · \(span) · 等待消耗数据", "Forecast basis: \(sampleCount) samples · \(span) · waiting for consumption data")
         }
-        let confidenceText = confidence.map { " · 可信度：\($0.chineseLabel)" } ?? ""
-        return String(format: "预测依据：%d 个采样 · %@ · %.1f%%/小时%@", sampleCount, span, hourlyConsumption, confidenceText)
+        let confidenceText = confidence.map { localized(" · 可信度：\($0.chineseLabel)", " · confidence: \($0.englishLabel)") } ?? ""
+        return localized(String(format: "预测依据：%d 个采样 · %@ · %.1f%%/小时%@", sampleCount, span, hourlyConsumption, confidenceText),
+                         String(format: "Forecast basis: %d samples · %@ · %.1f%%/hour%@", sampleCount, span, hourlyConsumption, confidenceText))
     }
 }
 
@@ -77,14 +85,16 @@ enum ForecastChange: Equatable {
     case earlier(by: TimeInterval)
     case later(by: TimeInterval)
 
-    var chineseLabel: String {
+    var localizedLabel: String {
         let interval: TimeInterval
         let prefix: String
         switch self {
         case .earlier(let by): interval = by; prefix = "提前"
         case .later(let by): interval = by; prefix = "推迟"
         }
-        return "预测较上次\(prefix) \(max(1, Int((interval / 60).rounded()))) 分钟"
+        let minutes = max(1, Int((interval / 60).rounded()))
+        let englishDirection = prefix == "提前" ? "earlier" : "later"
+        return localized("预测较上次\(prefix) \(minutes) 分钟", "Forecast is \(englishDirection) by \(minutes) minutes")
     }
 
     var level: QuotaLevel {
