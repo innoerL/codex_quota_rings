@@ -35,10 +35,11 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 - Optional **Star trails** add subtle dotted orbits around the rings. They can be disabled from the menu.
 - Optional **Concentric rings** combines both quotas into one mark: the outer ring is the five-hour quota and the inner ring is the weekly quota. Turn it off to restore the original two-ring layout.
 - Optional **Reset celebration** adds one brief glow when a new five-hour quota window begins; it has no notification and can be disabled.
+- Optional **Floating island** collapses either widget size into a small two-ring island. Hover it to smoothly restore the selected layout; after the pointer leaves, it returns to the island. Click the expanded widget to open details, and drag either state to move it.
 - When a live five-hour depletion estimate moves by at least ten minutes, the widget briefly says whether the expected run-out time is earlier or later than the prior estimate.
 - When the five-hour remaining quota falls below 20%, the widget automatically uses a nearly opaque, high contrast surface until it recovers.
 - Drag-end-only Codex snapping: dropping the widget within 28 points of a Codex edge places it with an 8-point gap, then avoids visible ordinary windows and the Dock-safe screen frame. It never follows Codex continuously.
-- Hover over the widget for 350 ms to open its full detail card; it closes 250 ms after the pointer has left both the widget and detail. Clicking keeps the detail pinned.
+- With Floating island off, hover over the widget for 350 ms to open its full detail card; it closes 250 ms after the pointer has left both the widget and detail. Clicking keeps the detail pinned.
 
 ## Controls
 
@@ -56,6 +57,7 @@ The Simplified Chinese menu offers:
 | 环形配色 | 额度状态 / 石墨 / 暖色 / 系统强调色 |
 | 趋势记录 | 仅本次 · 30 分钟 / 保留 5 小时 |
 | 界面语言 | 中文 / English |
+| 悬浮岛模式 | 开启 / 关闭 |
 | 星轨模式 | 开启 / 关闭 |
 | 重置庆祝 | 开启 / 关闭 |
 | 双环合体 | 开启 / 关闭 |

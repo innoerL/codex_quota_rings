@@ -16,6 +16,10 @@ import AppKit
                      "minimal density must resize the compact widget without a transform")
         compact.contentOpacity = WidgetOpacityPreset.light.alpha
         precondition(compact.contentOpacity == 0.68, "compact widget must retain the selected opacity")
+        compact.isIslandCollapsed = true
+        precondition(compact.preferredContentSize == compact.metrics.island,
+                     "a compact floating island must use the dedicated square surface")
+        compact.isIslandCollapsed = false
         AppLanguageManager.current = .english
         compact.snapshot = sample; compact.updateTooltip()
         precondition(compact.toolTip?.contains("remaining quota") == true,
@@ -30,6 +34,10 @@ import AppKit
                      "compact density must resize the large widget")
         large.contentOpacity = WidgetOpacityPreset.translucent.alpha
         precondition(large.contentOpacity == 0.82, "large widget must retain the selected opacity")
+        large.isIslandCollapsed = true
+        precondition(large.preferredContentSize == large.metrics.island,
+                     "a large floating island must collapse to the same compact island surface")
+        large.isIslandCollapsed = false
         large.snapshot = sample
         let forecasts = QuotaForecasts(fiveHour: QuotaForecast(
             outcome: .depletedAt(now.addingTimeInterval(3_600)),
@@ -116,6 +124,14 @@ import AppKit
             view.frame = NSRect(origin: NSPoint(x: 25 + index * 90, y: 20), size: view.preferredContentSize)
             root.addSubview(view)
         }
+        let island = QuotaView(frame: .zero)
+        island.snapshot = sample; island.starTrailEnabled = true; island.isIslandCollapsed = true
+        island.frame = NSRect(origin: NSPoint(x: 220, y: 25), size: island.preferredContentSize)
+        root.addSubview(island)
+        let largeIsland = LargeQuotaView(frame: .zero)
+        largeIsland.snapshot = sample; largeIsland.mergedRingsEnabled = true; largeIsland.isIslandCollapsed = true
+        largeIsland.frame = NSRect(origin: NSPoint(x: 285, y: 25), size: largeIsland.preferredContentSize)
+        root.addSubview(largeIsland)
         large.frame = NSRect(origin: NSPoint(x: 20, y: 380), size: large.preferredContentSize)
         root.addSubview(large)
         let expanded = LargeQuotaView(frame: .zero)

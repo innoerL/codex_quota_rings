@@ -6,7 +6,8 @@ final class LargeQuotaView: QuotaView {
     private static let expandedBaseHeight: CGFloat = 456
     private var guidanceHeight: CGFloat { isExpanded && guidanceTitle != nil ? 38 * metrics.scale : 0 }
     override var preferredContentSize: NSSize {
-        NSSize(width: metrics.largeCollapsed.width, height: isExpanded ? metrics.largeExpandedBaseHeight + guidanceHeight : metrics.largeCollapsed.height)
+        if isIslandCollapsed { return metrics.island }
+        return NSSize(width: metrics.largeCollapsed.width, height: isExpanded ? metrics.largeExpandedBaseHeight + guidanceHeight : metrics.largeCollapsed.height)
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
@@ -39,6 +40,10 @@ final class LargeQuotaView: QuotaView {
         trendHover = nil
     }
     override func draw(_ dirtyRect: NSRect) {
+        if isIslandCollapsed {
+            drawIsland()
+            return
+        }
         let scale = metrics.scale
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
         NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.97).setFill(); card.fill()

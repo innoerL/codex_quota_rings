@@ -9,12 +9,12 @@ import Foundation
         precondition(p.size == .small && p.smallLayout == .vertical && p.displayScope == .focusCodex
                      && p.historyRetention == .session30Minutes
                      && p.opacityPreset == .opaque && p.densityPreset == .standard && p.ringTheme == .semantic && p.language == .chinese
-                     && p.starTrailEnabled && p.resetCelebrationEnabled && !p.mergedRingsEnabled)
+                     && p.starTrailEnabled && p.resetCelebrationEnabled && !p.mergedRingsEnabled && !p.floatingIslandEnabled)
         p.smallLayout = .horizontal; p.displayScope = .focusDesktop; p.size = .large
         p.historyRetention = .local5Hours
         p.opacityPreset = .light; p.densityPreset = .minimal; p.ringTheme = .warm
         p.language = .english
-        p.starTrailEnabled = false; p.resetCelebrationEnabled = false; p.mergedRingsEnabled = true
+        p.starTrailEnabled = false; p.resetCelebrationEnabled = false; p.mergedRingsEnabled = true; p.floatingIslandEnabled = true
         p.save(to: defaults)
         let restored = WidgetPreferences.load(from: defaults)
         precondition(restored == p)
@@ -46,11 +46,12 @@ import Foundation
         defaults.removeObject(forKey: "widget.starTrailEnabled")
         defaults.removeObject(forKey: "widget.resetCelebrationEnabled")
         defaults.removeObject(forKey: "widget.mergedRingsEnabled")
+        defaults.removeObject(forKey: "widget.floatingIslandEnabled")
         let repaired = WidgetPreferences.load(from: defaults)
         precondition(repaired.size == .small && repaired.displayScope == .focusCodex
                      && repaired.historyRetention == .session30Minutes
                      && repaired.opacityPreset == .opaque && repaired.densityPreset == .standard && repaired.ringTheme == .semantic && repaired.language == .chinese
-                     && repaired.starTrailEnabled && repaired.resetCelebrationEnabled && !repaired.mergedRingsEnabled)
+                     && repaired.starTrailEnabled && repaired.resetCelebrationEnabled && !repaired.mergedRingsEnabled && !repaired.floatingIslandEnabled)
         precondition(repaired.smallLayout == .horizontal)
         defaults.set("local24Hours", forKey: "widget.historyRetention")
         precondition(WidgetPreferences.load(from: defaults).historyRetention == .local5Hours,
