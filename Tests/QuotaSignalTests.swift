@@ -33,6 +33,14 @@ import Foundation
                                   resetsAt: start.addingTimeInterval(16 * 60).timeIntervalSince1970)
         precondition(imminent.isResetImminent(at: start) && !distant.isResetImminent(at: start),
                      "FAIL: reset emphasis must begin only in the final fifteen minutes")
-        print("PASS: local spike detection and imminent reset emphasis")
+        precondition(RingFeedback.resolve(usageAlert: .none, lowQuota: false) == .rest,
+                     "FAIL: stable usage must keep the rings at rest")
+        precondition(RingFeedback.resolve(usageAlert: .spike, lowQuota: false) == .flowing,
+                     "FAIL: a spike must select the moving ring highlight")
+        precondition(RingFeedback.resolve(usageAlert: .none, lowQuota: true) == .breathing,
+                     "FAIL: low quota must select the slow breathing halo")
+        precondition(RingFeedback.resolve(usageAlert: .spike, lowQuota: true) == .flowing,
+                     "FAIL: a current spike must take priority over low-quota breathing")
+        print("PASS: local spike detection, reset emphasis, and ring feedback states")
     }
 }

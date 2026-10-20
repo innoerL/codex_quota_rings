@@ -44,7 +44,7 @@ final class LargeQuotaView: QuotaView {
         NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.97).setFill(); card.fill()
         NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.11).setStroke(); card.lineWidth = 1; card.stroke()
         label(showUsed ? "已用额度" : "剩余额度", x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
-        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: "5 小时", radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true)
+        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: "5 小时", radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
         ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: "一周", radius: metrics.largeRingRadius)
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {

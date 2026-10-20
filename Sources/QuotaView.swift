@@ -20,6 +20,8 @@ class QuotaView: NSView {
     var showUsed = false { didSet { needsDisplay = true; updateTooltip() } }
     var usageAlert: QuotaUsageAlert = .none { didSet { needsDisplay = true; updateTooltip() } }
     var lowQuotaContrastMode = false { didSet { needsDisplay = true; updateTooltip() } }
+    var ringFeedback: RingFeedback = .rest { didSet { needsDisplay = true } }
+    var ringFeedbackPhase: CGFloat = 0 { didSet { needsDisplay = true } }
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
     var onDrag: (() -> Void)?
@@ -72,7 +74,8 @@ class QuotaView: NSView {
         let measured = (string as NSString).size(withAttributes: attributes)
         (string as NSString).draw(at: CGPoint(x: center.x - measured.width / 2, y: center.y - measured.height / 2), withAttributes: attributes)
     }
-    func ring(_ quota: QuotaWindow?, at center: CGPoint, title: String, radius: CGFloat = 15, resetEmphasis: Bool = false) {
+    func ring(_ quota: QuotaWindow?, at center: CGPoint, title: String, radius: CGFloat = 15,
+              resetEmphasis: Bool = false, isPrimary: Bool = false) {
         let scale = radius / 15
         let track = NSBezierPath(ovalIn: NSRect(x: center.x-radius, y: center.y-radius, width: radius*2, height: radius*2))
         NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.19 : 0.10).setStroke(); track.lineWidth = 1.8 * scale; track.stroke()
@@ -92,6 +95,8 @@ class QuotaView: NSView {
             // Keep exhausted quota visibly red even though its remaining arc is empty.
             ringTheme.color(for: .low).withAlphaComponent(0.65).setStroke(); track.stroke()
         }
+        drawRingFeedback(quota: quota, value: value, center: center, radius: radius, scale: scale,
+                         isPrimary: isPrimary, outdated: outdated)
         let numeral = value.map { "\(Int($0.rounded()))" } ?? "—"
         let base = NSFont.monospacedDigitSystemFont(ofSize: 10.5 * scale, weight: .semibold)
         let rounded = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 10.5 * scale) } ?? base
@@ -109,6 +114,39 @@ class QuotaView: NSView {
             NSBezierPath(ovalIn: NSRect(x: center.x + radius * 0.58, y: center.y - radius * 0.82, width: dot, height: dot)).fill()
         }
     }
+    private func drawRingFeedback(quota: QuotaWindow?, value: Double?, center: CGPoint, radius: CGFloat,
+                                  scale: CGFloat, isPrimary: Bool, outdated: Bool) {
+        guard !outdated else { return }
+        switch ringFeedback {
+        case .rest:
+            return
+        case .flowing:
+            guard isPrimary, let value, value > 0 else { return }
+            let amount = min(1, max(0, value / 100))
+            let startFraction = Double(ringFeedbackPhase.truncatingRemainder(dividingBy: 1)) * amount
+            let highlightFraction = min(amount * 0.18, 0.12)
+            guard highlightFraction > 0 else { return }
+            let path = NSBezierPath()
+            let steps = 12
+            for step in 0...steps {
+                let fraction = startFraction + highlightFraction * Double(step) / Double(steps)
+                let angle = -.pi / 2 + 2 * .pi * fraction
+                let point = CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
+                if step == 0 { path.move(to: point) } else { path.line(to: point) }
+            }
+            NSColor.white.withAlphaComponent(0.42).setStroke()
+            path.lineWidth = 2.5 * scale; path.lineCapStyle = .round; path.stroke()
+        case .breathing:
+            guard quota?.level == .low else { return }
+            let pulse = 0.5 + 0.5 * sin(ringFeedbackPhase)
+            let halo = NSBezierPath(ovalIn: NSRect(x: center.x - radius - 2.5 * scale,
+                                                    y: center.y - radius - 2.5 * scale,
+                                                    width: (radius + 2.5 * scale) * 2,
+                                                    height: (radius + 2.5 * scale) * 2))
+            QuotaLevel.low.color.withAlphaComponent(0.10 + 0.18 * pulse).setStroke()
+            halo.lineWidth = (0.9 + 0.8 * pulse) * scale; halo.stroke()
+        }
+    }
     override func draw(_ dirtyRect: NSRect) {
         // A quiet sidebar control at rest, with a subtle macOS-style hover surface.
         if hovered || isExpanded {
@@ -117,7 +155,7 @@ class QuotaView: NSView {
             NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.16 : 0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         let scale = metrics.scale
-        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: "5 小时", radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true)
+        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: "5 小时", radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
         ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: "一周", radius: metrics.compactRingRadius)
         if connectionError != nil || snapshot?.isStale() == true {
             QuotaLevel.caution.color.setFill()

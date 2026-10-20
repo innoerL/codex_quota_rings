@@ -29,6 +29,7 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 - A reset-aware trend chart for the five-hour quota window.
 - Hover the five-hour trend to inspect the nearest sample’s used percentage, timestamp, and consumption rate. Reset discontinuities never receive a made-up rate.
 - Remaining quota colors use four stages: sage at 65% or more, teal at 40–64%, warm gold at 20–39%, and terracotta below 20%.
+- The rings rest when usage is steady, add a restrained moving highlight when a five-hour usage spike is detected, and use a slower terracotta breathing halo for low quota.
 - When a live five-hour depletion estimate moves by at least ten minutes, the widget briefly says whether the expected run-out time is earlier or later than the prior estimate.
 - When the five-hour remaining quota falls below 20%, the widget automatically uses a nearly opaque, high contrast surface until it recovers.
 - Drag-end-only Codex snapping: dropping the widget within 28 points of a Codex edge places it with an 8-point gap, then avoids visible ordinary windows and the Dock-safe screen frame. It never follows Codex continuously.

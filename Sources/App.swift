@@ -27,6 +27,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var globalMonitor: Any?
     private var freshnessTimer: Timer?
     private var visibilityTimer: Timer?
+    private var feedbackTimer: Timer?
+    private var activeRingFeedback: RingFeedback = .rest
+    private var ringFeedbackStartedAt: Date?
     private lazy var hoverDetails = HoverDetailController { [weak self] state in self?.applyDetailState(state) }
 
     init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
@@ -137,6 +140,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hideDetails()
         freshnessTimer?.invalidate()
         visibilityTimer?.invalidate()
+        feedbackTimer?.invalidate()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         panel?.orderOut(nil)
@@ -307,6 +311,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             lowQuotaContrastMode = contrastMode
             applyPresentation()
         }
+        updateRingFeedback(usageAlert: usageAlert, lowQuota: contrastMode)
         for target in [view as QuotaView, largeView as QuotaView] {
             target.snapshot = snapshot
             target.connectionError = error
@@ -333,6 +338,32 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func clearExpiredForecastChange(at date: Date = Date()) {
         guard let forecastChangeExpiresAt, forecastChangeExpiresAt <= date else { return }
         clearForecastChange()
+    }
+    private func updateRingFeedback(usageAlert: QuotaUsageAlert, lowQuota: Bool) {
+        let feedback = RingFeedback.resolve(usageAlert: usageAlert, lowQuota: lowQuota)
+        guard feedback != activeRingFeedback else { return }
+        activeRingFeedback = feedback
+        ringFeedbackStartedAt = feedback == .rest ? nil : Date()
+        for target in [view as QuotaView, largeView as QuotaView] {
+            target.ringFeedback = feedback
+            target.ringFeedbackPhase = 0
+        }
+        feedbackTimer?.invalidate(); feedbackTimer = nil
+        guard feedback != .rest else { return }
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in self?.advanceRingFeedback() }
+        feedbackTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+    private func advanceRingFeedback() {
+        guard activeRingFeedback != .rest, let ringFeedbackStartedAt else { return }
+        let elapsed = Date().timeIntervalSince(ringFeedbackStartedAt)
+        let phase: CGFloat
+        switch activeRingFeedback {
+        case .flowing: phase = CGFloat(elapsed * 0.55)
+        case .breathing: phase = CGFloat(elapsed * 1.2)
+        case .rest: return
+        }
+        view.ringFeedbackPhase = phase; largeView.ringFeedbackPhase = phase
     }
     private func clearForecastChange() {
         forecastChange = nil

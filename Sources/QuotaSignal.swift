@@ -12,6 +12,17 @@ enum QuotaUsageAlert: Equatable {
     }
 }
 
+enum RingFeedback: Equatable {
+    case rest
+    case flowing
+    case breathing
+
+    static func resolve(usageAlert: QuotaUsageAlert, lowQuota: Bool) -> RingFeedback {
+        if usageAlert == .spike { return .flowing }
+        return lowQuota ? .breathing : .rest
+    }
+}
+
 struct QuotaUsageAlertEngine {
     private struct Sample {
         let usedPercent: Double
