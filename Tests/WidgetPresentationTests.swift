@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 @main struct WidgetPresentationTests {
     static func main() {
@@ -11,6 +11,11 @@ import Foundation
         precondition(WidgetRingTheme.allCases == [.semantic, .graphite, .warm, .systemAccent])
         precondition(!WidgetRingTheme.graphite.color(for: .ample).isEqual(WidgetRingTheme.warm.color(for: .ample)),
                      "theme palettes must produce visibly distinct ring colors")
+        let deepBerry = QuotaLevel.low.color.usingColorSpace(.deviceRGB)!
+        precondition(abs(deepBerry.redComponent - 142 / 255) < 0.001
+                     && abs(deepBerry.greenComponent - 75 / 255) < 0.001
+                     && abs(deepBerry.blueComponent - 88 / 255) < 0.001,
+                     "the emergency semantic color must remain deep berry #8E4B58")
 
         for density in WidgetDensityPreset.allCases {
             let metrics = WidgetLayoutMetrics(density: density)

@@ -29,8 +29,8 @@ struct QuotaWindow: Decodable {
     var level: QuotaLevel {
         guard let remainingPercent else { return .unknown }
         if remainingPercent >= 65 { return .ample }
-        if remainingPercent >= 40 { return .steady }
-        return remainingPercent >= 20 ? .caution : .low
+        if remainingPercent >= 30 { return .steady }
+        return remainingPercent >= 10 ? .caution : .low
     }
     static func resetCountdown(seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds > 0 else { return localized("等待重置", "Waiting for reset") }

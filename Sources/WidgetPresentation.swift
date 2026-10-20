@@ -4,9 +4,10 @@ extension QuotaLevel {
     var color: NSColor {
         switch self {
         case .ample: return NSColor(srgbRed: 143/255, green: 169/255, blue: 144/255, alpha: 1)
-        case .steady: return NSColor(srgbRed: 104/255, green: 157/255, blue: 150/255, alpha: 1)
-        case .caution: return NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1)
-        case .low: return NSColor(srgbRed: 189/255, green: 122/255, blue: 112/255, alpha: 1)
+        case .steady: return NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1)
+        case .caution: return NSColor(srgbRed: 189/255, green: 122/255, blue: 112/255, alpha: 1)
+        // A deeper, cooler red than terracotta: urgent at a glance without becoming a pure alarm red.
+        case .low: return NSColor(srgbRed: 142/255, green: 75/255, blue: 88/255, alpha: 1)
         case .unknown: return NSColor(white: 0.42, alpha: 1)
         }
     }

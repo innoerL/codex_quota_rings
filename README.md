@@ -30,14 +30,14 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 - Expanded details show the active five-hour prediction sample count.
 - A reset-aware trend chart for the five-hour quota window.
 - Hover the five-hour trend to inspect the nearest sample’s used percentage, timestamp, and consumption rate. Reset discontinuities never receive a made-up rate.
-- Remaining quota colors use four stages: sage at 65% or more, teal at 40–64%, warm gold at 20–39%, and terracotta below 20%.
-- The rings rest when usage is steady, add a restrained moving highlight when a five-hour usage spike is detected, and use a slower terracotta breathing halo for low quota.
+- Remaining quota colors use four stages: sage at 65% or more, warm gold at 30–64%, terracotta at 10–29%, and deep berry red (`#8E4B58`) below 10%. The deeper final stage follows the same muted, warm palette while remaining immediately distinguishable as urgent.
+- The rings rest when usage is steady, add a restrained moving highlight when a five-hour usage spike is detected, and use a slower deep-berry breathing halo below 10% remaining.
 - Optional **Star trails** add subtle dotted orbits around the rings. They can be disabled from the menu.
 - Optional **Concentric rings** combines both quotas into one mark: the outer ring is the five-hour quota and the inner ring is the weekly quota. Turn it off to restore the original two-ring layout.
 - Optional **Reset celebration** adds one brief glow when a new five-hour quota window begins; it has no notification and can be disabled.
 - Optional **Floating island** collapses either widget size into a small two-ring island. Hover it to smoothly restore the selected layout; after the pointer leaves, it returns to the island. Click the expanded widget to open details, and drag either state to move it.
 - When a live five-hour depletion estimate moves by at least ten minutes, the widget briefly says whether the expected run-out time is earlier or later than the prior estimate.
-- When the five-hour remaining quota falls below 20%, the widget automatically uses a nearly opaque, high contrast surface until it recovers.
+- When the five-hour remaining quota falls below 10%, the widget automatically uses a nearly opaque, high contrast surface until it recovers.
 - Drag-end-only Codex snapping: dropping the widget within 28 points of a Codex edge places it with an 8-point gap, then avoids visible ordinary windows and the Dock-safe screen frame. It never follows Codex continuously.
 - With Floating island off, hover over the widget for 350 ms to open its full detail card; it closes 250 ms after the pointer has left both the widget and detail. Clicking keeps the detail pinned.
 

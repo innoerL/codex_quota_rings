@@ -11,6 +11,7 @@ Add quiet, local feedback for unusual five-hour quota consumption, imminent rese
 - A five-hour reset is imminent only when its reset time is more than zero and no more than 15 minutes away.
 - Compact widgets show a small terracotta dot for a spike and a gold dot attached to the five-hour ring for an imminent reset. Larger views use short colored status text and emphasize the reset row.
 - Ring palettes are: semantic quota status (default), graphite, warm, and the macOS system accent color. The selection is stored in the existing widget preferences.
+- The semantic palette maps remaining quota to sage at 65% or more, warm gold at 30–64%, terracotta at 10–29%, and deep berry red (`#8E4B58`) below 10%.
 
 ## Safety and privacy
 
