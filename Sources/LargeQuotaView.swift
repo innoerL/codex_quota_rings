@@ -10,8 +10,6 @@ final class LargeQuotaView: QuotaView {
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { needsDisplay = true } }
-    var budgetUsedPercent: Double? { didSet { needsDisplay = true } }
-    var budgetLabel: String? { didSet { needsDisplay = true } }
     var forecastSampleCount = 0 { didSet { needsDisplay = true } }
     var onInstallCodex: (() -> Void)?
     private var guidanceButton: NSButton?
@@ -63,6 +61,8 @@ final class LargeQuotaView: QuotaView {
         default:
             if usageAlert == .spike {
                 status = "用量突然升高"; statusColor = QuotaLevel.low.color
+            } else if let forecastChange {
+                status = forecastChange.chineseLabel; statusColor = forecastChange.level.color
             } else if snapshot?.fiveHour?.isResetImminent() == true {
                 status = "5 小时额度即将重置"; statusColor = QuotaLevel.caution.color
             } else {
@@ -96,8 +96,7 @@ final class LargeQuotaView: QuotaView {
             label(forecasts.fiveHour.chineseExplanation, x: 16 * scale, y: 292 * scale, size: 9.5 * scale,
                   color: .secondaryLabelColor)
             let trendRect = NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale)
-            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention,
-                                    budgetUsedPercent: budgetUsedPercent, budgetLabel: budgetLabel, in: trendRect)
+            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention, in: trendRect)
             if let trendHover, let range = QuotaTrendRenderer.timeRange(for: historySamples) {
                 let span = range.end.timeIntervalSince(range.start)
                 let position = span > 0 ? trendHover.sample.timestamp.timeIntervalSince(range.start) / span : 0

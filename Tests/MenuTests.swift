@@ -7,7 +7,7 @@ import AppKit
         var last: WidgetPreferences?
         controller.onChange = { last = $0 }
         let menu = controller.makeMenu()
-        precondition(menu.items.count == 8)
+        precondition(menu.items.count == 7)
         precondition(menu.items[2].submenu!.items.map(\.title) == ["聚焦 Codex 时显示", "一直显示", "聚焦桌面时显示"])
         precondition(menu.items[2].submenu!.items[0].state == .on)
         precondition(menu.items[3].title == "透明度")
@@ -22,9 +22,6 @@ import AppKit
         precondition(menu.items[6].title == "趋势记录")
         precondition(menu.items[6].submenu!.items.map(\.title) == ["仅本次 · 30 分钟", "保留 5 小时"])
         precondition(menu.items[6].submenu!.items[0].state == .on)
-        precondition(menu.items[7].title == "额度预算线")
-        precondition(menu.items[7].submenu!.items.map(\.title) == ["关闭", "保留 10%", "保留 20%", "保留 30%"])
-        precondition(menu.items[7].submenu!.items[2].state == .on)
         let desktop = menu.items[2].submenu!.items[2]
         NSApp.sendAction(desktop.action!, to: desktop.target, from: desktop)
         precondition(last?.displayScope == .focusDesktop && last?.size == .small)
@@ -49,10 +46,6 @@ import AppKit
         precondition(controller.makeMenu().items[4].submenu!.items.map(\.state) == [.off, .off, .on])
         precondition(controller.makeMenu().items[5].submenu!.items.map(\.state) == [.off, .off, .on, .off])
         precondition(controller.makeMenu().items[6].submenu!.items.map(\.state) == [.off, .on])
-        let reserve30 = controller.makeMenu().items[7].submenu!.items[3]
-        NSApp.sendAction(reserve30.action!, to: reserve30.target, from: reserve30)
-        precondition(last?.budget == .reserve30 && last?.historyRetention == .local5Hours)
-        precondition(controller.makeMenu().items[7].submenu!.items.map(\.state) == [.off, .off, .off, .on])
-        print("PASS: menu checkmarks, scope, appearance, theme, budget and history selection, independent changes and disabled orientation")
+        print("PASS: menu checkmarks, scope, appearance, theme and history selection, independent changes and disabled orientation")
     }
 }

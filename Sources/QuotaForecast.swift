@@ -73,6 +73,52 @@ struct QuotaForecasts: Equatable {
     static let collecting = QuotaForecasts(fiveHour: .collecting, week: .collecting)
 }
 
+enum ForecastChange: Equatable {
+    case earlier(by: TimeInterval)
+    case later(by: TimeInterval)
+
+    var chineseLabel: String {
+        let interval: TimeInterval
+        let prefix: String
+        switch self {
+        case .earlier(let by): interval = by; prefix = "提前"
+        case .later(let by): interval = by; prefix = "推迟"
+        }
+        return "预测较上次\(prefix) \(max(1, Int((interval / 60).rounded()))) 分钟"
+    }
+
+    var level: QuotaLevel {
+        switch self {
+        case .earlier: return .low
+        case .later: return .ample
+        }
+    }
+}
+
+/// Reports only meaningful movement, comparing every update to the last
+/// acknowledged estimate so gradual changes can accumulate into one signal.
+struct ForecastChangeDetector {
+    private let threshold: TimeInterval
+    private var baseline: Date?
+
+    init(threshold: TimeInterval = 10 * 60) { self.threshold = threshold }
+
+    mutating func record(_ forecast: QuotaForecast) -> ForecastChange? {
+        guard case let .depletedAt(date) = forecast.outcome else {
+            baseline = nil
+            return nil
+        }
+        guard let baseline else {
+            self.baseline = date
+            return nil
+        }
+        let change = date.timeIntervalSince(baseline)
+        guard abs(change) >= threshold else { return nil }
+        self.baseline = date
+        return change < 0 ? .earlier(by: -change) : .later(by: change)
+    }
+}
+
 struct QuotaForecastEngine {
     private struct Sample {
         let usedPercent: Double

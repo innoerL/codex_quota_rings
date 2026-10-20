@@ -29,7 +29,7 @@ The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macO
 - A reset-aware trend chart for the five-hour quota window.
 - Hover the five-hour trend to inspect the nearest sample’s used percentage, timestamp, and consumption rate. Reset discontinuities never receive a made-up rate.
 - Remaining quota colors use four stages: sage at 65% or more, teal at 40–64%, warm gold at 20–39%, and terracotta below 20%.
-- Choose a trend-chart budget line: off, or reserve 10%, 20% (the default), or 30%. The dashed line marks the matching used-quota threshold.
+- When a live five-hour depletion estimate moves by at least ten minutes, the widget briefly says whether the expected run-out time is earlier or later than the prior estimate.
 - When the five-hour remaining quota falls below 20%, the widget automatically uses a nearly opaque, high contrast surface until it recovers.
 - Drag-end-only Codex snapping: dropping the widget within 28 points of a Codex edge places it with an 8-point gap, then avoids visible ordinary windows and the Dock-safe screen frame. It never follows Codex continuously.
 - Hover over the widget for 350 ms to open its full detail card; it closes 250 ms after the pointer has left both the widget and detail. Clicking keeps the detail pinned.
@@ -49,7 +49,6 @@ The Simplified Chinese menu offers:
 | 紧凑度 | 标准（100%）/ 紧凑（88%）/ 极简（76%） |
 | 环形配色 | 额度状态 / 石墨 / 暖色 / 系统强调色 |
 | 趋势记录 | 仅本次 · 30 分钟 / 保留 5 小时 |
-| 额度预算线 | 关闭 / 保留 10% / 保留 20% / 保留 30% |
 
 ## Privacy
 

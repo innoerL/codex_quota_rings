@@ -12,6 +12,7 @@ class QuotaView: NSView {
     var preferredContentSize: NSSize { baseContentSize }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
     var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
+    var forecastChange: ForecastChange? { didSet { needsDisplay = true; updateTooltip() } }
     var hasForecastSampleData = false { didSet { needsDisplay = true; updateTooltip() } }
     var connectionError: String? { didSet { needsDisplay = true; updateTooltip() } }
     var connectionState: QuotaConnectionState = .locating { didSet { needsDisplay = true; updateTooltip(); connectionStateDidChange() } }
@@ -134,6 +135,7 @@ class QuotaView: NSView {
             lines.append("更新：\(formatter.string(from: snapshot.fetchedAt))")
         }
         if let alert = usageAlert.chineseLabel { lines.append(alert) }
+        if let forecastChange { lines.append(forecastChange.chineseLabel) }
         if snapshot?.fiveHour?.isResetImminent() == true { lines.append("5 小时额度即将重置") }
         if lowQuotaContrastMode { lines.append("低额度高对比模式已开启") }
         switch connectionState {

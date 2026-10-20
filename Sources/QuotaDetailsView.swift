@@ -9,14 +9,13 @@ final class QuotaDetailsView: NSView {
     var contentOpacity: CGFloat = WidgetOpacityPreset.opaque.alpha { didSet { applyPresentation() } }
     var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
     var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
+    var forecastChange: ForecastChange? { didSet { updateLabels() } }
     var hasForecastSampleData = false { didSet { updateLabels() } }
     var forecastSampleCount = 0 { didSet { updateLabels() } }
     var connectionError: String? { didSet { updateLabels() } }
     var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance() } }
     var historySamples: [QuotaHistorySample] = [] { didSet { trend.samples = historySamples } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { trend.retention = historyRetention } }
-    var budgetUsedPercent: Double? { didSet { trend.budgetUsedPercent = budgetUsedPercent } }
-    var budgetLabel: String? { didSet { trend.budgetLabel = budgetLabel } }
     var onInstallCodex: (() -> Void)?
     var onPointerEntered: (() -> Void)?
     var onPointerExited: (() -> Void)?
@@ -126,9 +125,11 @@ final class QuotaDetailsView: NSView {
         case .locating where snapshot == nil: updated.stringValue = "正在查找 Codex…"
         default: if let snapshot {
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            let signal = usageAlert.chineseLabel ?? (snapshot.fiveHour?.isResetImminent() == true ? "5 小时额度即将重置" : nil)
+            let signal = usageAlert.chineseLabel ?? forecastChange?.chineseLabel
+                ?? (snapshot.fiveHour?.isResetImminent() == true ? "5 小时额度即将重置" : nil)
             updated.stringValue = signal ?? ("最近更新 \(format.string(from: snapshot.fetchedAt))" + (outdated ? " · 已过期" : ""))
-            updated.textColor = signal == nil ? .secondaryLabelColor : (usageAlert == .spike ? QuotaLevel.low.color : QuotaLevel.caution.color)
+            updated.textColor = signal == nil ? .secondaryLabelColor
+                : (usageAlert == .spike ? QuotaLevel.low.color : forecastChange?.level.color ?? QuotaLevel.caution.color)
         } else { updated.stringValue = "正在读取额度…"; updated.textColor = .secondaryLabelColor }
         }
         automatic.stringValue = showUsed ? "已用额度" : "采样 \(forecastSampleCount)"

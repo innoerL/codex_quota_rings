@@ -41,6 +41,22 @@ import Foundation
         precondition(refreshed.sampleCount == 12 && refreshed.hourlyConsumption != nil,
                      "FAIL: updated forecasts must retain their current sampling evidence")
 
+        var changeDetector = ForecastChangeDetector()
+        let initialEstimate = QuotaForecast(outcome: .depletedAt(start.addingTimeInterval(7_200)), confidence: .medium)
+        precondition(changeDetector.record(initialEstimate) == nil,
+                     "FAIL: the first estimate establishes a baseline without creating a change alert")
+        let smallShift = QuotaForecast(outcome: .depletedAt(start.addingTimeInterval(7_200 - 9 * 60)), confidence: .medium)
+        precondition(changeDetector.record(smallShift) == nil,
+                     "FAIL: small forecast movement must stay quiet")
+        let earlierEstimate = QuotaForecast(outcome: .depletedAt(start.addingTimeInterval(7_200 - 12 * 60)), confidence: .medium)
+        precondition(changeDetector.record(earlierEstimate) == .earlier(by: 12 * 60),
+                     "FAIL: a meaningful earlier forecast must produce an earlier-use warning")
+        let laterEstimate = QuotaForecast(outcome: .depletedAt(start.addingTimeInterval(7_200)), confidence: .medium)
+        precondition(changeDetector.record(laterEstimate) == .later(by: 12 * 60),
+                     "FAIL: a meaningful later forecast must produce a later-use update")
+        precondition(changeDetector.record(.collecting) == nil,
+                     "FAIL: losing a prediction must clear the comparison baseline")
+
         var resetEngine = QuotaForecastEngine()
         var afterReset: QuotaForecast = .collecting
         for minute in 0...10 {
@@ -143,6 +159,6 @@ import Foundation
         precondition(weekly.week.outcome == .collecting && weekly.week.confidence == nil,
                      "FAIL: weekly quota must never produce a depletion forecast")
 
-        print("PASS: quota forecasts cover confidence, live recalculation, depletion, reset, idle, and no-week behavior")
+        print("PASS: quota forecasts cover confidence, live recalculation, change signals, depletion, reset, idle, and no-week behavior")
     }
 }

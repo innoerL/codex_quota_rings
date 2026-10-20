@@ -3,7 +3,7 @@ import AppKit
 final class WidgetMenu: NSObject {
     var preferences: WidgetPreferences
     var onChange: ((WidgetPreferences) -> Void)?
-    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), theme(WidgetRingTheme), history(HistoryRetention), budget(QuotaBudget) }
+    private enum Choice { case size(WidgetSize), layout(SmallLayout), scope(DisplayScope), opacity(WidgetOpacityPreset), density(WidgetDensityPreset), theme(WidgetRingTheme), history(HistoryRetention) }
     init(preferences: WidgetPreferences) { self.preferences = preferences }
 
     func makeMenu() -> NSMenu {
@@ -25,7 +25,6 @@ final class WidgetMenu: NSObject {
         group("紧凑度", choices: [("标准", .density(.standard), preferences.densityPreset == .standard), ("紧凑", .density(.compact), preferences.densityPreset == .compact), ("极简", .density(.minimal), preferences.densityPreset == .minimal)])
         group("环形配色", choices: [("额度状态", .theme(.semantic), preferences.ringTheme == .semantic), ("石墨", .theme(.graphite), preferences.ringTheme == .graphite), ("暖色", .theme(.warm), preferences.ringTheme == .warm), ("系统强调色", .theme(.systemAccent), preferences.ringTheme == .systemAccent)])
         group("趋势记录", choices: [("仅本次 · 30 分钟", .history(.session30Minutes), preferences.historyRetention == .session30Minutes), ("保留 5 小时", .history(.local5Hours), preferences.historyRetention == .local5Hours)])
-        group("额度预算线", choices: QuotaBudget.allCases.map { ($0.chineseLabel, .budget($0), preferences.budget == $0) })
         return menu
     }
     @objc private func selectChoice(_ sender: NSMenuItem) {
@@ -38,7 +37,6 @@ final class WidgetMenu: NSObject {
         case .density(let density): preferences.densityPreset = density
         case .theme(let theme): preferences.ringTheme = theme
         case .history(let retention): preferences.historyRetention = retention
-        case .budget(let budget): preferences.budget = budget
         }
         onChange?(preferences)
     }

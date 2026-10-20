@@ -6,6 +6,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let defaults: UserDefaults
     private let historyStore: QuotaHistoryStore
     private var forecastEngine = QuotaForecastEngine()
+    private var forecastChangeDetector = ForecastChangeDetector()
+    private var forecastChange: ForecastChange?
+    private var forecastChangeExpiresAt: Date?
     private var usageAlertEngine = QuotaUsageAlertEngine()
     private var lowQuotaContrastMode = false
     private var connectionState: QuotaConnectionState = .locating
@@ -102,6 +105,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         applyConnectionState(.locating)
         freshnessTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self else { return }
+            self.clearExpiredForecastChange()
             self.view.needsDisplay = true; self.largeView.needsDisplay = true; self.details.updateLabels()
             self.publishHistory()
         }
@@ -250,11 +254,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.metrics = metrics; view.contentOpacity = opacity; view.ringTheme = preferences.ringTheme
         largeView.metrics = metrics; largeView.contentOpacity = opacity; largeView.ringTheme = preferences.ringTheme
         details.metrics = metrics; details.contentOpacity = opacity
-        let reserved = preferences.budget.reservedPercent
-        let budgetUsedPercent = reserved.map { 100 - $0 }
-        let budgetLabel = reserved.map { "预算 留 \(Int($0))%" }
-        largeView.budgetUsedPercent = budgetUsedPercent; largeView.budgetLabel = budgetLabel
-        details.budgetUsedPercent = budgetUsedPercent; details.budgetLabel = budgetLabel
         panel?.alphaValue = opacity
         detailsPanel?.alphaValue = opacity
     }
@@ -291,6 +290,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func applyQuota(snapshot: QuotaSnapshot?, error: String?) {
         let forecasts = (error == nil ? snapshot.map { forecastEngine.record($0) } : nil) ?? .collecting
+        let detectedChange = forecastChangeDetector.record(error == nil ? forecasts.fiveHour : .collecting)
+        if let detectedChange {
+            forecastChange = detectedChange
+            forecastChangeExpiresAt = Date().addingTimeInterval(90)
+        } else if case .depletedAt = forecasts.fiveHour.outcome {
+            clearExpiredForecastChange()
+        } else {
+            clearForecastChange()
+        }
         let hasForecastSampleData = error == nil && forecastEngine.hasFiveHourSampleData
         let forecastSampleCount = error == nil ? forecastEngine.fiveHourSampleCount : 0
         let usageAlert = (error == nil ? snapshot.map { usageAlertEngine.record($0) } : nil) ?? .none
@@ -303,6 +311,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             target.snapshot = snapshot
             target.connectionError = error
             target.forecasts = forecasts
+            target.forecastChange = forecastChange
             target.hasForecastSampleData = hasForecastSampleData
             target.usageAlert = usageAlert
             target.lowQuotaContrastMode = contrastMode
@@ -311,6 +320,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         details.snapshot = snapshot
         details.connectionError = error
         details.forecasts = forecasts
+        details.forecastChange = forecastChange
         details.hasForecastSampleData = hasForecastSampleData
         details.forecastSampleCount = forecastSampleCount
         details.usageAlert = usageAlert
@@ -319,6 +329,15 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             _ = historyStore.record(snapshot)
             publishHistory()
         }
+    }
+    private func clearExpiredForecastChange(at date: Date = Date()) {
+        guard let forecastChangeExpiresAt, forecastChangeExpiresAt <= date else { return }
+        clearForecastChange()
+    }
+    private func clearForecastChange() {
+        forecastChange = nil
+        forecastChangeExpiresAt = nil
+        view.forecastChange = nil; largeView.forecastChange = nil; details.forecastChange = nil
     }
     private func publishHistory() {
         let samples = historyStore.samples(at: Date())
