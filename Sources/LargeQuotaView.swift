@@ -6,7 +6,6 @@ final class LargeQuotaView: QuotaView {
     private static let expandedBaseHeight: CGFloat = 456
     private var guidanceHeight: CGFloat { isExpanded && guidanceTitle != nil ? 38 * metrics.scale : 0 }
     override var preferredContentSize: NSSize {
-        if isIslandCollapsed { return metrics.island }
         return NSSize(width: metrics.largeCollapsed.width, height: isExpanded ? metrics.largeExpandedBaseHeight + guidanceHeight : metrics.largeCollapsed.height)
     }
     var historySamples: [QuotaHistorySample] = [] { didSet { needsDisplay = true } }
@@ -40,22 +39,13 @@ final class LargeQuotaView: QuotaView {
         trendHover = nil
     }
     override func draw(_ dirtyRect: NSRect) {
-        if isIslandCollapsed {
-            drawIsland()
-            return
-        }
         let scale = metrics.scale
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
         NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.97).setFill(); card.fill()
         NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.11).setStroke(); card.lineWidth = 1; card.stroke()
         label(showUsed ? localized("已用额度", "Used quota") : localized("剩余额度", "Remaining quota"), x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
-        if mergedRingsEnabled {
-            mergedRings(outer: snapshot?.fiveHour, inner: snapshot?.week,
-                        at: CGPoint(x: bounds.midX, y: 77 * scale), baseRadius: metrics.largeRingRadius)
-        } else {
-            ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: localized("5 小时", "5 hours"), radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
-            ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: localized("一周", "Week"), radius: metrics.largeRingRadius)
-        }
+        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: localized("5 小时", "5 hours"), radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+        ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: localized("一周", "Week"), radius: metrics.largeRingRadius)
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {
             QuotaLevel.caution.color.withAlphaComponent(0.7).setFill()

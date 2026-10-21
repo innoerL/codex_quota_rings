@@ -9,7 +9,7 @@ class QuotaView: NSView {
     private var baseContentSize: NSSize {
         smallLayout == .vertical ? metrics.smallVertical : metrics.smallHorizontal
     }
-    var preferredContentSize: NSSize { isIslandCollapsed ? metrics.island : baseContentSize }
+    var preferredContentSize: NSSize { baseContentSize }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
     var forecasts = QuotaForecasts.collecting { didSet { needsDisplay = true; updateTooltip() } }
     var forecastChange: ForecastChange? { didSet { needsDisplay = true; updateTooltip() } }
@@ -23,8 +23,6 @@ class QuotaView: NSView {
     var ringFeedback: RingFeedback = .rest { didSet { needsDisplay = true } }
     var ringFeedbackPhase: CGFloat = 0 { didSet { needsDisplay = true } }
     var starTrailEnabled = true { didSet { needsDisplay = true } }
-    var mergedRingsEnabled = false { didSet { needsDisplay = true } }
-    var isIslandCollapsed = false { didSet { needsDisplay = true; updateTooltip() } }
     var resetCelebrationProgress: CGFloat? { didSet { needsDisplay = true } }
     var onMenu: (() -> NSMenu)?
     var onClick: (() -> Void)?
@@ -174,25 +172,7 @@ class QuotaView: NSView {
             halo.lineWidth = (1.1 + pulse) * scale; halo.stroke()
         }
     }
-    func mergedRings(outer: QuotaWindow?, inner: QuotaWindow?, at center: CGPoint, baseRadius: CGFloat) {
-        let outerRadius = baseRadius + (baseRadius > 20 ? 8 : 5)
-        let innerRadius = max(6, baseRadius - (baseRadius > 20 ? 7 : 4))
-        ring(outer, at: center, title: "", radius: outerRadius, resetEmphasis: outer?.isResetImminent() == true,
-             isPrimary: true, showValue: false, showTitle: false)
-        ring(inner, at: center, title: "", radius: innerRadius, showValue: false, showTitle: false)
-        let outerValue = showUsed ? outer?.clampedUsedPercent : outer?.remainingPercent
-        let innerValue = showUsed ? inner?.clampedUsedPercent : inner?.remainingPercent
-        let scale = baseRadius / 15
-        let first = outerValue.map { localized("5时 \(Int($0.rounded()))%", "5h \(Int($0.rounded()))%") } ?? "5h —"
-        let second = innerValue.map { localized("周 \(Int($0.rounded()))%", "7d \(Int($0.rounded()))%") } ?? "7d —"
-        text(first, center: CGPoint(x: center.x, y: center.y - 4 * scale), size: max(5.5, 7.5 * scale), weight: .semibold, color: .labelColor)
-        text(second, center: CGPoint(x: center.x, y: center.y + 5 * scale), size: max(4.8, 6 * scale), weight: .medium, color: .secondaryLabelColor)
-    }
     override func draw(_ dirtyRect: NSRect) {
-        if isIslandCollapsed {
-            drawIsland()
-            return
-        }
         // A quiet sidebar control at rest, with a subtle macOS-style hover surface.
         if hovered || isExpanded {
             let surface = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 6), xRadius: 13, yRadius: 13)
@@ -200,13 +180,8 @@ class QuotaView: NSView {
             NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.16 : 0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         let scale = metrics.scale
-        if mergedRingsEnabled {
-            mergedRings(outer: snapshot?.fiveHour, inner: snapshot?.week,
-                        at: CGPoint(x: smallLayout == .vertical ? bounds.midX : bounds.midX, y: 30 * scale), baseRadius: metrics.compactRingRadius)
-        } else {
-            ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: localized("5 小时", "5 hours"), radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
-            ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: localized("一周", "Week"), radius: metrics.compactRingRadius)
-        }
+        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: localized("5 小时", "5 hours"), radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+        ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: localized("一周", "Week"), radius: metrics.compactRingRadius)
         if connectionError != nil || snapshot?.isStale() == true {
             QuotaLevel.caution.color.setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()
@@ -216,35 +191,9 @@ class QuotaView: NSView {
             NSBezierPath(ovalIn: NSRect(x: bounds.maxX-5, y: bounds.minY+2, width: 3, height: 3)).fill()
         }
     }
-    func drawIsland() {
-        let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: bounds.width * 0.34, yRadius: bounds.height * 0.34)
-        NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.96).setFill(); card.fill()
-        NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.12).setStroke(); card.lineWidth = 1; card.stroke()
-        let radius = min(bounds.width, bounds.height) * 0.20
-        let centerY = bounds.midY
-        if mergedRingsEnabled {
-            let outer = radius + 4
-            let inner = max(6, radius - 3)
-            ring(snapshot?.fiveHour, at: CGPoint(x: bounds.midX, y: centerY), title: "", radius: outer,
-                 resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true, showValue: false, showTitle: false)
-            ring(snapshot?.week, at: CGPoint(x: bounds.midX, y: centerY), title: "", radius: inner,
-                 showValue: false, showTitle: false)
-        } else {
-            ring(snapshot?.fiveHour, at: CGPoint(x: bounds.width * 0.32, y: centerY), title: "", radius: radius,
-                 resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true, showValue: false, showTitle: false)
-            ring(snapshot?.week, at: CGPoint(x: bounds.width * 0.68, y: centerY), title: "", radius: radius,
-                 showValue: false, showTitle: false)
-        }
-        if connectionError != nil || snapshot?.isStale() == true {
-            QuotaLevel.caution.color.setFill()
-            NSBezierPath(ovalIn: NSRect(x: bounds.maxX - 8, y: 5, width: 4, height: 4)).fill()
-        }
-    }
     func updateTooltip() {
         var lines = [localized("Codex \(showUsed ? "已用" : "剩余")额度 · 每30秒刷新", "Codex \(showUsed ? "used" : "remaining") quota · refreshes every 30 seconds"),
-                     isIslandCollapsed
-                        ? localized("悬停展开 · 拖动移动 · 右键菜单", "Hover to expand · drag to move · right-click for menu")
-                        : localized("点击查看详情 · 拖动移动 · 右键菜单", "Click for details · drag to move · right-click for menu")]
+                     localized("点击查看详情 · 拖动移动 · 右键菜单", "Click for details · drag to move · right-click for menu")]
         if let snapshot {
             let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm:ss"
             lines.append("更新：\(formatter.string(from: snapshot.fetchedAt))")

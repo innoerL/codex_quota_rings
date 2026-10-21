@@ -23,7 +23,6 @@ import AppKit
             precondition(metrics.smallHorizontal.width > 0 && metrics.smallHorizontal.height > 0)
             precondition(metrics.largeCollapsed.width > 0 && metrics.largeCollapsed.height > 0)
             precondition(metrics.detail.width > 0 && metrics.detail.height > 0)
-            precondition(metrics.island.width > 0 && metrics.island.height > 0)
             precondition(metrics.compactRingRadius > 0 && metrics.largeRingRadius > 0 && metrics.gap > 0)
         }
         print("PASS: presentation presets and layout metrics")

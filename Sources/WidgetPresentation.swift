@@ -80,7 +80,6 @@ struct WidgetLayoutMetrics: Equatable {
     let largeCollapsed: CGSize
     let largeExpandedBaseHeight: CGFloat
     let detail: CGSize
-    let island: CGSize
     let compactRingRadius: CGFloat
     let largeRingRadius: CGFloat
     let gap: CGFloat
@@ -94,7 +93,6 @@ struct WidgetLayoutMetrics: Equatable {
         largeCollapsed = size(280, 174)
         largeExpandedBaseHeight = 456 * scale
         detail = size(246, 284)
-        island = size(54, 54)
         compactRingRadius = 15 * scale
         largeRingRadius = 28 * scale
         gap = 8 * scale
@@ -110,7 +108,6 @@ struct WidgetLayoutMetrics: Equatable {
             && equal(lhs.largeCollapsed, rhs.largeCollapsed)
             && lhs.largeExpandedBaseHeight == rhs.largeExpandedBaseHeight
             && equal(lhs.detail, rhs.detail)
-            && equal(lhs.island, rhs.island)
             && lhs.compactRingRadius == rhs.compactRingRadius
             && lhs.largeRingRadius == rhs.largeRingRadius
             && lhs.gap == rhs.gap

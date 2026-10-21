@@ -15,8 +15,6 @@ struct WidgetPreferences: Equatable {
     var language: AppLanguage = .chinese
     var starTrailEnabled = true
     var resetCelebrationEnabled = true
-    var mergedRingsEnabled = false
-    var floatingIslandEnabled = false
 
     var positionKey: String { size == .large ? "large" : "small.\(smallLayout.rawValue)" }
 
@@ -30,9 +28,7 @@ struct WidgetPreferences: Equatable {
              ringTheme: defaults.string(forKey: "widget.ringTheme").flatMap(WidgetRingTheme.init(rawValue:)) ?? .semantic,
              language: defaults.string(forKey: "widget.language").flatMap(AppLanguage.init(rawValue:)) ?? .chinese,
              starTrailEnabled: defaults.object(forKey: "widget.starTrailEnabled") as? Bool ?? true,
-             resetCelebrationEnabled: defaults.object(forKey: "widget.resetCelebrationEnabled") as? Bool ?? true,
-             mergedRingsEnabled: defaults.bool(forKey: "widget.mergedRingsEnabled"),
-             floatingIslandEnabled: defaults.bool(forKey: "widget.floatingIslandEnabled"))
+             resetCelebrationEnabled: defaults.object(forKey: "widget.resetCelebrationEnabled") as? Bool ?? true)
     }
     func save(to defaults: UserDefaults = .standard) {
         defaults.set(size.rawValue, forKey: "widget.size")
@@ -45,8 +41,6 @@ struct WidgetPreferences: Equatable {
         defaults.set(language.rawValue, forKey: "widget.language")
         defaults.set(starTrailEnabled, forKey: "widget.starTrailEnabled")
         defaults.set(resetCelebrationEnabled, forKey: "widget.resetCelebrationEnabled")
-        defaults.set(mergedRingsEnabled, forKey: "widget.mergedRingsEnabled")
-        defaults.set(floatingIslandEnabled, forKey: "widget.floatingIslandEnabled")
     }
 
     private static func historyRetention(from rawValue: String?) -> HistoryRetention {

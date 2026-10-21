@@ -33,7 +33,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var celebrationTimer: Timer?
     private var celebrationStartedAt: Date?
     private var lastFiveHourResetAt: TimeInterval?
-    private var islandCollapseWorkItem: DispatchWorkItem?
     private lazy var hoverDetails = HoverDetailController { [weak self] state in self?.applyDetailState(state) }
 
     init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
@@ -80,17 +79,17 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.delegate = self
         view.showUsed = defaults.bool(forKey: "showUsed")
         view.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
-        view.onClick = { [weak self] in self?.widgetClicked() }
-        view.onDrag = { [weak self] in self?.widgetDragStarted() }
+        view.onClick = { [weak self] in self?.toggleDetails() }
+        view.onDrag = { [weak self] in self?.hoverDetails.dragStarted() }
         view.onDragFinished = { [weak self] in self?.snapPanelAfterDrag() }
-        view.onPointerEntered = { [weak self] in self?.widgetPointerEntered() }
-        view.onPointerExited = { [weak self] in self?.widgetPointerExited() }
+        view.onPointerEntered = { [weak self] in self?.hoverDetails.pointerEnteredWidget() }
+        view.onPointerExited = { [weak self] in self?.hoverDetails.pointerExitedWidget() }
         largeView.onMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
-        largeView.onClick = { [weak self] in self?.widgetClicked() }
-        largeView.onDrag = { [weak self] in self?.widgetDragStarted() }
+        largeView.onClick = { [weak self] in self?.toggleDetails() }
+        largeView.onDrag = { [weak self] in self?.hoverDetails.dragStarted() }
         largeView.onDragFinished = { [weak self] in self?.snapPanelAfterDrag() }
-        largeView.onPointerEntered = { [weak self] in self?.widgetPointerEntered() }
-        largeView.onPointerExited = { [weak self] in self?.widgetPointerExited() }
+        largeView.onPointerEntered = { [weak self] in self?.hoverDetails.pointerEnteredWidget() }
+        largeView.onPointerExited = { [weak self] in self?.hoverDetails.pointerExitedWidget() }
         largeView.onInstallCodex = { [weak self] in self?.installCodex() }
         details.onInstallCodex = { [weak self] in self?.installCodex() }
         details.onPointerEntered = { [weak self] in self?.hoverDetails.pointerEnteredDetail() }
@@ -98,8 +97,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         largeView.showUsed = view.showUsed
         widgetMenu.onChange = { [weak self] selection in self?.applyPreferences(selection) }
         applyPresentation()
-        view.isIslandCollapsed = preferences.floatingIslandEnabled
-        largeView.isIslandCollapsed = preferences.floatingIslandEnabled
         configureLayout(restorePosition: true)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "circle.dashed", accessibilityDescription: localized("Codex 额度", "Codex quota"))
@@ -149,7 +146,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         visibilityTimer?.invalidate()
         feedbackTimer?.invalidate()
         celebrationTimer?.invalidate()
-        islandCollapseWorkItem?.cancel()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         panel?.orderOut(nil)
@@ -222,7 +218,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let previous = preferences
         let structuralChange = previous.size != selection.size || previous.smallLayout != selection.smallLayout
             || previous.displayScope != selection.displayScope || previous.densityPreset != selection.densityPreset
-            || previous.floatingIslandEnabled != selection.floatingIslandEnabled
         if structuralChange { savePosition() }
         let layoutChanged = preferences.positionKey != selection.positionKey
         if structuralChange { hideDetails(); largeView.isExpanded = false }
@@ -233,11 +228,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         detailsPanel?.title = localized("额度详情", "Quota details")
         statusItem?.button?.toolTip = localized("Codex 额度双环", "Codex Quota Rings")
         applyPresentation()
-        if previous.floatingIslandEnabled != selection.floatingIslandEnabled {
-            islandCollapseWorkItem?.cancel(); islandCollapseWorkItem = nil
-            view.isIslandCollapsed = selection.floatingIslandEnabled
-            largeView.isIslandCollapsed = selection.floatingIslandEnabled
-        }
         if !selection.resetCelebrationEnabled { stopResetCelebration() }
         if previous.historyRetention != selection.historyRetention {
             _ = historyStore.setRetention(selection.historyRetention, at: Date())
@@ -251,7 +241,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refreshVisibility()
         view.updateTooltip(); largeView.updateTooltip(); details.refreshLanguage()
     }
-    private func configureLayout(restorePosition: Bool, animated: Bool = false) {
+    private func configureLayout(restorePosition: Bool) {
         guard let panel else { return }
         changingFrame = true
         defer { changingFrame = false }
@@ -270,7 +260,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let y = max(screen.minY, min(anchor.y - size.height, screen.maxY - size.height))
         placementAnchor = largeView.isExpanded ? anchor : NSPoint(x: x, y: y + size.height)
         panel.contentView = content
-        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true, animate: animated)
+        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
         content.frame = NSRect(origin: .zero, size: size)
         panel.hasShadow = preferences.size == .large
     }
@@ -282,57 +272,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         details.metrics = metrics; details.contentOpacity = opacity
         for target in [view as QuotaView, largeView as QuotaView] {
             target.starTrailEnabled = preferences.starTrailEnabled
-            target.mergedRingsEnabled = preferences.mergedRingsEnabled
         }
         panel?.alphaValue = opacity
         detailsPanel?.alphaValue = opacity
-    }
-    private var displayedWidget: QuotaView { preferences.size == .large ? largeView : view }
-    private func widgetClicked() {
-        if preferences.floatingIslandEnabled, displayedWidget.isIslandCollapsed {
-            setIslandCollapsed(false, animated: true)
-            return
-        }
-        toggleDetails()
-    }
-    private func widgetDragStarted() {
-        islandCollapseWorkItem?.cancel(); islandCollapseWorkItem = nil
-        hoverDetails.dragStarted()
-    }
-    private func widgetPointerEntered() {
-        islandCollapseWorkItem?.cancel(); islandCollapseWorkItem = nil
-        guard preferences.floatingIslandEnabled else {
-            hoverDetails.pointerEnteredWidget()
-            return
-        }
-        if displayedWidget.isIslandCollapsed { setIslandCollapsed(false, animated: true) }
-    }
-    private func widgetPointerExited() {
-        guard preferences.floatingIslandEnabled else {
-            hoverDetails.pointerExitedWidget()
-            return
-        }
-        scheduleIslandCollapse()
-    }
-    private func scheduleIslandCollapse() {
-        islandCollapseWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, self.preferences.floatingIslandEnabled,
-                  self.hoverDetails.state == .closed,
-                  self.detailsPanel?.isVisible != true,
-                  !self.largeView.isExpanded else { return }
-            self.setIslandCollapsed(true, animated: true)
-        }
-        islandCollapseWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55, execute: work)
-    }
-    private func setIslandCollapsed(_ collapsed: Bool, animated: Bool) {
-        guard preferences.floatingIslandEnabled || !collapsed else { return }
-        let content = displayedWidget
-        guard content.isIslandCollapsed != collapsed else { return }
-        if collapsed { hideDetails() }
-        content.isIslandCollapsed = collapsed
-        configureLayout(restorePosition: false, animated: animated)
     }
     private func snapPanelAfterDrag() {
         guard let panel else { return }
@@ -504,10 +446,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func presentDetails() {
         guard shouldDisplayNow() else { hoverDetails.close(); return }
-        islandCollapseWorkItem?.cancel(); islandCollapseWorkItem = nil
-        if preferences.floatingIslandEnabled, displayedWidget.isIslandCollapsed {
-            setIslandCollapsed(false, animated: true)
-        }
         if preferences.size == .large {
             if !largeView.isExpanded {
                 largeView.isExpanded = true
@@ -547,7 +485,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor); self.globalMonitor = nil }
-        if preferences.floatingIslandEnabled { scheduleIslandCollapse() }
     }
     private func shouldDisplayNow() -> Bool {
         let front = NSWorkspace.shared.frontmostApplication
