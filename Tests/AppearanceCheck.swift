@@ -5,7 +5,7 @@ final class PreviewSurface: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor(white: 0.9, alpha: 1).setFill(); bounds.fill()
         NSColor(white: 0.13, alpha: 1).setFill()
-        NSBezierPath(roundedRect: NSRect(x: 0, y: -20, width: 62, height: 240), xRadius: 16, yRadius: 16).fill()
+        NSBezierPath(roundedRect: NSRect(x: 0, y: -20, width: 62, height: 320), xRadius: 16, yRadius: 16).fill()
     }
 }
 
@@ -14,11 +14,21 @@ final class PreviewSurface: NSView {
         _ = NSApplication.shared
         let now = Date()
         let snapshot = QuotaSnapshot(fiveHour: QuotaWindow(usedPercent: 32, windowDurationMins: 300, resetsAt: now.timeIntervalSince1970 + 8760), week: QuotaWindow(usedPercent: 53, windowDurationMins: 10080, resetsAt: now.timeIntervalSince1970 + 295200), fetchedAt: now)
-        let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 224))
+        let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 370))
         let compact = QuotaView(frame: NSRect(origin: NSPoint(x: 5, y: 44), size: QuotaView.preferredSize))
+        compact.contentOpacity = WidgetOpacityPreset.light.alpha
+        precondition(compact.contentOpacity == 0.68, "the compact surface must expose its effective opacity")
         compact.snapshot = snapshot
         let card = QuotaDetailsView(frame: NSRect(origin: NSPoint(x: 55, y: 8), size: QuotaDetailsView.preferredSize))
+        card.contentOpacity = WidgetOpacityPreset.translucent.alpha
+        precondition(card.contentOpacity == 0.82, "the detail surface must expose its effective opacity")
         card.snapshot = snapshot
+        card.forecasts = QuotaForecasts(fiveHour: QuotaForecast(outcome: .depletedAt(now.addingTimeInterval(3_600)), confidence: .medium), week: .collecting)
+        card.historySamples = [
+            QuotaHistorySample(timestamp: now.addingTimeInterval(-600), fiveHourUsedPercent: 20, weekUsedPercent: 45),
+            QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)
+        ]
+        card.frame.size = card.preferredContentSize
         root.addSubview(compact); root.addSubview(card)
         var opened = 0
         compact.onClick = { opened += 1 }
@@ -35,6 +45,6 @@ final class PreviewSurface: NSView {
             fputs("FAIL: transparent widget erased the sidebar background\n", stderr); exit(1)
         }
         try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
-        print("PASS: compact click, no refresh button, transparent compositing and native appearance render (sample values)")
+        print("PASS: compact click, no refresh button, transparent compositing and native appearance render")
     }
 }
