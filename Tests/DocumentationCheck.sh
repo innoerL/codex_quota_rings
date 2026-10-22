@@ -2,6 +2,12 @@
 set -euo pipefail
 cd -- "${0:A:h:h}"
 
+# GitHub's macOS image can omit ripgrep. Every check below uses basic
+# grep-compatible flags, so retain the same semantics without that dependency.
+if (( ! $+commands[rg] )); then
+    rg() { grep -E "$@"; }
+fi
+
 for readme in README.md README.zh-CN.md; do
     rg -qi 'forecast|预测' "$readme"
     rg -qi 'collecting|收集' "$readme"
