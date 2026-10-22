@@ -3,15 +3,23 @@ set -euo pipefail
 cd -- "${0:A:h:h}"
 
 script=Scripts/build.command
-rg -q -- '-target arm64-apple-macosx12\.0' "$script"
-rg -q -- '-target x86_64-apple-macosx12\.0' "$script"
-rg -q 'module-cache-arm64' "$script"
-rg -q 'module-cache-x86_64' "$script"
-rg -q 'lipo.*-create' "$script"
-rg -q 'lipo.*-archs' "$script"
-rg -q 'codesign.*--verify.*--deep.*--strict' "$script"
-rg -q 'unzip.*-t' "$script"
-rg -q 'stage|staging' "$script"
+contains() {
+    if (( $+commands[rg] )); then
+        rg -q -- "$1" "$2"
+    else
+        grep -E -q -- "$1" "$2"
+    fi
+}
+
+contains '-target arm64-apple-macosx12\.0' "$script"
+contains '-target x86_64-apple-macosx12\.0' "$script"
+contains 'module-cache-arm64' "$script"
+contains 'module-cache-x86_64' "$script"
+contains 'lipo.*-create' "$script"
+contains 'lipo.*-archs' "$script"
+contains 'codesign.*--verify.*--deep.*--strict' "$script"
+contains 'unzip.*-t' "$script"
+contains 'stage|staging' "$script"
 
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/quota-build-check.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT
