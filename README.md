@@ -4,11 +4,27 @@
 
 A small native macOS widget for the remaining Codex quota in the 5-hour and weekly windows. It offers compact rings, an expandable desktop-style card, and private quota trends.
 
+<p align="center">
+  <a href="https://github.com/innoerL/codex_quota_rings/releases/latest/download/Quota-Rings.app.zip"><strong>⬇ Download Quota Rings for macOS</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/innoerL/codex_quota_rings/releases/latest">Release notes</a>
+</p>
+
+<p align="center"><sub>Universal 2 · Apple Silicon & Intel · macOS 12+</sub></p>
+
 ![Large card, expanded details, and compact vertical and horizontal layouts using sample data](assets/layouts.png)
 
-## Install and use
+## Download and install
 
-The packaged app is zero-configuration. Download or receive `Quota-Rings.app.zip`, unzip it, move **Quota Rings.app** to Applications, and open it. Quota Rings automatically discovers the registered Codex app, standard application folders, Homebrew locations, and the executable path. No Terminal command or path setting is needed.
+**[⬇ Download the latest ZIP](https://github.com/innoerL/codex_quota_rings/releases/latest/download/Quota-Rings.app.zip)** — no build tools or Terminal setup required.
+
+1. Download and unzip `Quota-Rings.app.zip`.
+2. Move **Quota Rings.app** to Applications.
+3. Open Codex, sign in normally, then open **Quota Rings.app**.
+
+[View all releases](https://github.com/innoerL/codex_quota_rings/releases) for earlier versions and full update notes.
+
+The packaged app is zero-configuration. Quota Rings automatically discovers the registered Codex app, standard application folders, Homebrew locations, and the executable path. No Terminal command or path setting is needed.
 
 Open Codex and sign in normally. If Codex is absent, the expanded widget shows **Install Codex**. Discovery and connection retry automatically.
 

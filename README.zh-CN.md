@@ -4,11 +4,27 @@
 
 一个轻量的 macOS 原生组件，用双环显示 Codex 的 **5 小时**与**一周**剩余额度，并提供额度趋势。
 
+<p align="center">
+  <a href="https://github.com/innoerL/codex_quota_rings/releases/latest/download/Quota-Rings.app.zip"><strong>⬇ 下载 macOS 版 Quota Rings</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/innoerL/codex_quota_rings/releases/latest">查看更新说明</a>
+</p>
+
+<p align="center"><sub>Universal 2 · 支持 Apple Silicon 与 Intel · macOS 12+</sub></p>
+
 ![大卡片、展开详情和两种小组件布局，均为示例数据](assets/layouts.png)
 
-## 安装与使用
+## 下载与安装
 
-安装包是**零配置、无需配置路径**的。拿到 `Quota-Rings.app.zip` 后解压，把 **Quota Rings.app** 拖入“应用程序”并双击打开。它会自动查找系统登记的 Codex、标准应用目录、Homebrew 位置及可执行路径，不需要终端命令。
+**[⬇ 下载最新版 ZIP](https://github.com/innoerL/codex_quota_rings/releases/latest/download/Quota-Rings.app.zip)** —— 无需构建工具，也不需要终端配置。
+
+1. 下载并解压 `Quota-Rings.app.zip`。
+2. 将 **Quota Rings.app** 拖入“应用程序”。
+3. 正常打开 Codex 并登录，再打开 **Quota Rings.app**。
+
+[查看所有版本](https://github.com/innoerL/codex_quota_rings/releases)，可获取旧版本和完整更新说明。
+
+安装包是**零配置、无需配置路径**的。它会自动查找系统登记的 Codex、标准应用目录、Homebrew 位置及可执行路径，不需要终端命令。
 
 正常打开 Codex 并登录即可。未安装 Codex 时，展开组件会显示“安装 Codex”。安装、移动或重新登录后，组件会自动重新发现并重连。
 
