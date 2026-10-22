@@ -3,6 +3,11 @@ import AppKit
 @main struct ControllerTests {
     static func main() {
         _ = NSApplication.shared
+        func approximatelyEqual(_ actual: NSSize, _ expected: NSSize) -> Bool {
+            // Window Server content frames are rounded to device pixels. A one-point
+            // tolerance keeps this integration test valid on both retina and CI displays.
+            abs(actual.width - expected.width) <= 1 && abs(actual.height - expected.height) <= 1
+        }
         let suite = "quota-controller-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -25,13 +30,13 @@ import AppKit
         precondition(app.panel.alphaValue == WidgetOpacityPreset.light.alpha,
                      "selected opacity must propagate to the compact panel")
         let compactExpectedSize = NSSize(width: 42 * 0.88, height: 124 * 0.88)
-        precondition(app.panel.frame.size == compactExpectedSize,
+        precondition(approximatelyEqual(app.panel.frame.size, compactExpectedSize),
                      "compact density must alter the panel frame; expected \(compactExpectedSize), got \(app.panel.frame.size)")
         precondition(app.panel.frame.minX == compactOrigin.x && app.panel.frame.maxY == compactTop,
                      "density changes must preserve the saved top-left anchor")
         p.densityPreset = .minimal
         app.applyPreferences(p)
-        precondition(app.panel.frame.size == NSSize(width: 42 * 0.76, height: 124 * 0.76),
+        precondition(approximatelyEqual(app.panel.frame.size, NSSize(width: 42 * 0.76, height: 124 * 0.76)),
                      "every density preset must change the active frame")
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         p.size = .large; app.applyPreferences(p)
@@ -52,7 +57,7 @@ import AppKit
         precondition(app.panel.frame.origin == bottomOrigin, "temporary expansion clamp must not overwrite saved position")
         p.size = .small; app.applyPreferences(p)
         let finalCompactSize = WidgetLayoutMetrics(density: .minimal).smallVertical
-        precondition(app.panel.frame.size == finalCompactSize
+        precondition(approximatelyEqual(app.panel.frame.size, finalCompactSize)
                      && app.panel.frame.minX == compactOrigin.x && app.panel.frame.maxY == compactTop,
                      "restoring the compact widget must retain density and its top-left anchor")
         app.toggleDetails(); precondition(app.detailsPanel.isVisible)
