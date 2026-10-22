@@ -34,6 +34,12 @@ If Codex is moved or reinstalled, choose **Recheck Codex** from the widget or me
 
 The release is a **Universal 2** app for Apple Silicon and Intel Macs, with macOS 12 as the minimum app target when a compatible Codex installation is available. This community build is ad-hoc signed rather than notarized. If Gatekeeper blocks it, use System Settings → Privacy & Security → Open Anyway after confirming where you obtained the archive.
 
+## Expanded details
+
+![Expanded card with reset timing, forecast state, five-hour trend area, and compact layout previews using sample data](assets/details-v2.png)
+
+The expanded card keeps reset timing, the five-hour forecast, confidence state, and trend inspection in one place. The compact forms remain available when you want the least intrusive view.
+
 ## Features
 
 - Large card, compact vertical rings, and compact horizontal rings.
