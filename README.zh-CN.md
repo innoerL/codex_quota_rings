@@ -12,7 +12,9 @@
 
 <p align="center"><sub>Universal 2 · 支持 Apple Silicon 与 Intel · macOS 12+</sub></p>
 
-![大卡片、展开详情和两种小组件布局，均为示例数据](assets/layouts.png)
+![Quota Rings 成品预览：大卡片与小型竖向布局，均为示例额度数据](assets/hero-v2.png)
+
+<p align="center"><sub>成品预览，使用示例额度数据。</sub></p>
 
 ## 下载与安装
 
