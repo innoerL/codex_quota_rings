@@ -63,7 +63,7 @@ import AppKit
         app.toggleDetails(); precondition(app.detailsPanel.isVisible)
         let detailTop = app.detailsPanel.frame.maxY
         p.historyRetention = .local5Hours; app.applyPreferences(p)
-        app.toggleDetails(); precondition(app.detailsPanel.isVisible)
+        precondition(app.detailsPanel.isVisible, "history changes must keep the compact detail card open")
         precondition(abs(app.detailsPanel.frame.maxY - detailTop) < 1,
                      "history changes must preserve the compact detail top edge")
         p.smallLayout = .horizontal; app.applyPreferences(p)
