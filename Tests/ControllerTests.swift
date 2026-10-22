@@ -24,8 +24,9 @@ import AppKit
         app.applyPreferences(p)
         precondition(app.panel.alphaValue == WidgetOpacityPreset.light.alpha,
                      "selected opacity must propagate to the compact panel")
-        precondition(app.panel.frame.size == NSSize(width: 42 * 0.88, height: 124 * 0.88),
-                     "compact density must alter the panel frame")
+        let compactExpectedSize = NSSize(width: 42 * 0.88, height: 124 * 0.88)
+        precondition(app.panel.frame.size == compactExpectedSize,
+                     "compact density must alter the panel frame; expected \(compactExpectedSize), got \(app.panel.frame.size)")
         precondition(app.panel.frame.minX == compactOrigin.x && app.panel.frame.maxY == compactTop,
                      "density changes must preserve the saved top-left anchor")
         p.densityPreset = .minimal
