@@ -1,0 +1,21 @@
+name: Bug report
+description: Report an unexpected behavior
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: macOS version, CPU architecture, app revision and Codex CLI version. Do not include account data.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected behavior and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Optional screenshot with sample values or a concise error message. Never include credentials, private files or raw server responses.

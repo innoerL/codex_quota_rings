@@ -3,6 +3,8 @@ import Foundation
 /// Owns one read-only app-server session. All mutable state lives on the main queue.
 final class QuotaClient {
     var onChange: ((QuotaSnapshot?, String?) -> Void)?
+    var onConnectionState: ((QuotaConnectionState) -> Void)?
+    private(set) var codexApplicationURL: URL?
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
@@ -16,8 +18,12 @@ final class QuotaClient {
     private var stopped = true
     private var snapshot: QuotaSnapshot?
     private let executableURL: URL?
+    private let locator: CodexLocating
 
-    init(executableURL: URL? = nil) { self.executableURL = executableURL }
+    init(executableURL: URL? = nil, locator: CodexLocating = CodexLocator()) {
+        self.executableURL = executableURL
+        self.locator = locator
+    }
 
     func start() {
         guard stopped else { return }
@@ -30,6 +36,16 @@ final class QuotaClient {
         pollTimer?.invalidate(); pollTimer = nil
         retryTimer?.invalidate(); retryTimer = nil
         disconnect()
+    }
+    /// Repeat the same automatic discovery used on first launch. This is useful
+    /// after the user moves or reinstalls Codex without requiring any path setup.
+    func rediscoverCodex() {
+        guard !stopped else { return }
+        retryTimer?.invalidate(); retryTimer = nil
+        disconnect()
+        codexApplicationURL = nil
+        onConnectionState?(.locating)
+        connect()
     }
     func refresh() {
         guard !stopped else { return }
@@ -45,16 +61,25 @@ final class QuotaClient {
         let token = generation
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
             guard let self, self.generation == token, self.pendingID == id else { return }
-            self.fail("额度请求超时，将自动重连")
+            self.fail(localized("额度请求超时，将自动重连", "Quota request timed out; reconnecting automatically"))
         }
     }
     private func connect() {
         guard !stopped, process == nil else { return }
-        let candidates = [ProcessInfo.processInfo.environment["QUOTA_CODEX_PATH"],
-                          "/usr/local/bin/codex", "/opt/homebrew/bin/codex",
-                          "/Applications/Codex.app/Contents/Resources/codex"].compactMap { $0 }
-        let executable = executableURL ?? candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }).map { URL(fileURLWithPath: $0) }
-        guard let executable else { fail("找不到 Codex CLI，请安装 Codex 或设置 QUOTA_CODEX_PATH"); return }
+        onConnectionState?(.locating)
+        let location: CodexLocation?
+        if let executableURL {
+            location = CodexLocation(executableURL: executableURL, applicationURL: nil)
+        } else {
+            location = locator.locate()
+        }
+        guard let location else {
+            codexApplicationURL = nil
+            reportUnavailable(.codexNotInstalled, message: localized("未找到 Codex，将自动重试", "Codex was not found; retrying automatically"))
+            return
+        }
+        codexApplicationURL = location.applicationURL
+        let executable = location.executableURL
         let child = Process()
         child.executableURL = executable
         child.arguments = ["app-server", "--listen", "stdio://"]
@@ -72,14 +97,14 @@ final class QuotaClient {
             let bytes = handle.availableData
             DispatchQueue.main.async {
                 guard let self, self.generation == token, !self.stopped else { return }
-                if bytes.isEmpty { self.fail("额度连接已断开，将自动重连") }
+                if bytes.isEmpty { self.fail(localized("额度连接已断开，将自动重连", "Quota connection closed; reconnecting automatically")) }
                 else { self.consume(bytes) }
             }
         }
         child.terminationHandler = { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self, self.generation == token, !self.stopped else { return }
-                self.fail("Codex 连接已结束，将自动重连")
+                self.fail(localized("Codex 连接已结束，将自动重连", "Codex connection ended; reconnecting automatically"))
             }
         }
         do {
@@ -87,9 +112,9 @@ final class QuotaClient {
             send(["id": 1, "method": "initialize", "params": ["clientInfo": ["name": "quota_rings", "title": "Quota Rings", "version": "1.0.0"]]])
             DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
                 guard let self, self.generation == token, !self.initialized else { return }
-                self.fail("Codex 连接超时，将自动重连")
+                self.fail(localized("Codex 连接超时，将自动重连", "Codex connection timed out; reconnecting automatically"))
             }
-        } catch { fail("无法启动 Codex 额度连接") }
+        } catch { fail(localized("无法启动 Codex 额度连接", "Unable to start the Codex quota connection")) }
     }
     private func send(_ message: [String: Any]) {
         guard let input else { return }
@@ -97,11 +122,11 @@ final class QuotaClient {
             var bytes = try JSONSerialization.data(withJSONObject: message)
             bytes.append(10)
             try input.write(contentsOf: bytes)
-        } catch { fail("无法发送额度查询，将自动重连") }
+        } catch { fail(localized("无法发送额度查询，将自动重连", "Unable to send quota request; reconnecting automatically")) }
     }
     private func consume(_ bytes: Data) {
         buffer.append(bytes)
-        guard buffer.count <= 4 * 1024 * 1024 else { fail("额度响应过大，连接已重置"); return }
+        guard buffer.count <= 4 * 1024 * 1024 else { fail(localized("额度响应过大，连接已重置", "Quota response was too large; connection reset")); return }
         while let newline = buffer.firstIndex(of: 10) {
             let line = buffer.subdata(in: buffer.startIndex..<newline)
             buffer.removeSubrange(buffer.startIndex...newline)
@@ -109,14 +134,21 @@ final class QuotaClient {
                   let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
             if let id = object["id"] as? Int {
                 if id == 1 {
-                    guard object["result"] != nil else { fail("Codex 初始化失败，请检查本机登录"); return }
+                    guard object["result"] != nil else {
+                        if isAuthenticationError(object) { requireAuthentication() }
+                        else { fail(localized("Codex 初始化失败，将自动重试", "Codex initialization failed; retrying automatically")) }
+                        return
+                    }
                     initialized = true
+                    onConnectionState?(.ready)
                     send(["method": "initialized"])
                     refresh()
                 } else if id == pendingID {
                     pendingID = nil
                     guard let result = object["result"] as? [String: Any] else {
-                        fail("无法读取额度，请检查网络和 Codex 登录状态"); return
+                        if isAuthenticationError(object) { requireAuthentication() }
+                        else { fail(localized("无法读取额度，将自动重试", "Unable to read quota; retrying automatically")) }
+                        return
                     }
                     accept(result)
                 }
@@ -125,7 +157,7 @@ final class QuotaClient {
                 accept(result)
             } else if object["method"] as? String == "account/updated" {
                 snapshot = nil
-                onChange?(nil, "账户已变化，正在重新读取")
+                onChange?(nil, localized("账户已变化，正在重新读取", "Account changed; reading quota again"))
                 refresh()
             }
         }
@@ -135,14 +167,38 @@ final class QuotaClient {
             let data = try JSONSerialization.data(withJSONObject: result)
             snapshot = try QuotaSnapshot.decode(data)
             onChange?(snapshot, nil)
-        } catch { fail("额度数据格式异常，将自动重试") }
+        } catch { fail(localized("额度数据格式异常，将自动重试", "Quota data format was invalid; retrying automatically")) }
     }
     private func fail(_ message: String) {
         guard !stopped else { return }
         disconnect()
+        onConnectionState?(.disconnected(message))
         onChange?(snapshot, message)
+        scheduleRetry()
+    }
+    private func requireAuthentication() {
+        guard !stopped else { return }
+        let message = localized("请先在 Codex 中登录", "Please sign in to Codex first")
+        disconnect()
+        onConnectionState?(.authenticationRequired)
+        onChange?(snapshot, message)
+        scheduleRetry()
+    }
+    private func reportUnavailable(_ state: QuotaConnectionState, message: String) {
+        guard !stopped else { return }
+        onConnectionState?(state)
+        onChange?(snapshot, message)
+        scheduleRetry()
+    }
+    private func scheduleRetry() {
         retryTimer?.invalidate()
         retryTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in self?.connect() }
+    }
+    private func isAuthenticationError(_ object: [String: Any]) -> Bool {
+        guard let error = object["error"] as? [String: Any] else { return false }
+        let message = (error["message"] as? String ?? "").lowercased()
+        return message.contains("auth") || message.contains("sign in") || message.contains("login")
+            || message.contains("logged in") || message.contains("unauthorized")
     }
     private func disconnect() {
         generation = UUID()

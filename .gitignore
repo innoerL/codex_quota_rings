@@ -11,3 +11,4 @@ work/
 *.swiftdoc
 *.swiftmodule
 *.swiftsourceinfo
+__pycache__/
