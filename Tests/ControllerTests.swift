@@ -66,7 +66,7 @@ import AppKit
         precondition(app.detailsPanel.isVisible, "history changes must keep the compact detail card open")
         precondition(abs(app.detailsPanel.frame.maxY - detailTop) < 1,
                      "history changes must preserve the compact detail top edge")
-        p.smallLayout = .horizontal; app.applyPreferences(p)
+        p.densityPreset = .compact; p.smallLayout = .horizontal; app.applyPreferences(p)
         precondition(!app.detailsPanel.isVisible && app.panel.frame.width > app.panel.frame.height)
         precondition(WidgetPreferences.load(from: defaults) == p)
         precondition(NSWorkspace.shared.frontmostApplication?.bundleIdentifier == front, "widget must not activate")
