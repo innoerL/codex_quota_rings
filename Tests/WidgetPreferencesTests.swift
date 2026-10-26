@@ -15,10 +15,13 @@ import Foundation
         p.opacityPreset = .light; p.densityPreset = .minimal; p.ringTheme = .warm
         p.language = .english
         p.starTrailEnabled = false; p.resetCelebrationEnabled = false
+        p = p.normalizedForDisplay()
         p.save(to: defaults)
         let restored = WidgetPreferences.load(from: defaults)
         precondition(restored == p)
-        p.size = .small
+        precondition(restored.smallLayout == .vertical,
+                     "minimal density must always restore the five-hour-over-week vertical stack")
+        p.densityPreset = .standard; p.smallLayout = .horizontal; p.size = .small
         precondition(p.smallLayout == .horizontal && p.displayScope == .focusDesktop)
         for scope in DisplayScope.allCases {
             p.displayScope = scope; p.save(to: defaults)
@@ -57,6 +60,10 @@ import Foundation
         defaults.set("local7Days", forKey: "widget.historyRetention")
         precondition(WidgetPreferences.load(from: defaults).historyRetention == .local5Hours,
                      "legacy long-history preferences must migrate to the five-hour option")
+        defaults.set(WidgetDensityPreset.minimal.rawValue, forKey: "widget.densityPreset")
+        defaults.set(SmallLayout.horizontal.rawValue, forKey: "widget.smallLayout")
+        precondition(WidgetPreferences.load(from: defaults).smallLayout == .vertical,
+                     "minimal density must migrate prior horizontal layouts to the vertical stack")
         print("PASS: preference defaults, round trips, independence and invalid-value recovery")
     }
 }

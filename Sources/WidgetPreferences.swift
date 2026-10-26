@@ -16,7 +16,15 @@ struct WidgetPreferences: Equatable {
     var starTrailEnabled = true
     var resetCelebrationEnabled = true
 
-    var positionKey: String { size == .large ? "large" : "small.\(smallLayout.rawValue)" }
+    var positionKey: String {
+        size == .large ? "large" : "small.\((densityPreset == .minimal ? SmallLayout.vertical : smallLayout).rawValue)"
+    }
+
+    func normalizedForDisplay() -> Self {
+        var normalized = self
+        if normalized.densityPreset == .minimal { normalized.smallLayout = .vertical }
+        return normalized
+    }
 
     static func load(from defaults: UserDefaults = .standard) -> Self {
         Self(size: defaults.string(forKey: "widget.size").flatMap(WidgetSize.init(rawValue:)) ?? .small,
@@ -28,19 +36,20 @@ struct WidgetPreferences: Equatable {
              ringTheme: defaults.string(forKey: "widget.ringTheme").flatMap(WidgetRingTheme.init(rawValue:)) ?? .semantic,
              language: defaults.string(forKey: "widget.language").flatMap(AppLanguage.init(rawValue:)) ?? .chinese,
              starTrailEnabled: defaults.object(forKey: "widget.starTrailEnabled") as? Bool ?? true,
-             resetCelebrationEnabled: defaults.object(forKey: "widget.resetCelebrationEnabled") as? Bool ?? true)
+             resetCelebrationEnabled: defaults.object(forKey: "widget.resetCelebrationEnabled") as? Bool ?? true).normalizedForDisplay()
     }
     func save(to defaults: UserDefaults = .standard) {
-        defaults.set(size.rawValue, forKey: "widget.size")
-        defaults.set(smallLayout.rawValue, forKey: "widget.smallLayout")
-        defaults.set(displayScope.rawValue, forKey: "widget.displayScope")
-        defaults.set(historyRetention.rawValue, forKey: "widget.historyRetention")
-        defaults.set(opacityPreset.rawValue, forKey: "widget.opacityPreset")
-        defaults.set(densityPreset.rawValue, forKey: "widget.densityPreset")
-        defaults.set(ringTheme.rawValue, forKey: "widget.ringTheme")
-        defaults.set(language.rawValue, forKey: "widget.language")
-        defaults.set(starTrailEnabled, forKey: "widget.starTrailEnabled")
-        defaults.set(resetCelebrationEnabled, forKey: "widget.resetCelebrationEnabled")
+        let normalized = normalizedForDisplay()
+        defaults.set(normalized.size.rawValue, forKey: "widget.size")
+        defaults.set(normalized.smallLayout.rawValue, forKey: "widget.smallLayout")
+        defaults.set(normalized.displayScope.rawValue, forKey: "widget.displayScope")
+        defaults.set(normalized.historyRetention.rawValue, forKey: "widget.historyRetention")
+        defaults.set(normalized.opacityPreset.rawValue, forKey: "widget.opacityPreset")
+        defaults.set(normalized.densityPreset.rawValue, forKey: "widget.densityPreset")
+        defaults.set(normalized.ringTheme.rawValue, forKey: "widget.ringTheme")
+        defaults.set(normalized.language.rawValue, forKey: "widget.language")
+        defaults.set(normalized.starTrailEnabled, forKey: "widget.starTrailEnabled")
+        defaults.set(normalized.resetCelebrationEnabled, forKey: "widget.resetCelebrationEnabled")
     }
 
     private static func historyRetention(from rawValue: String?) -> HistoryRetention {

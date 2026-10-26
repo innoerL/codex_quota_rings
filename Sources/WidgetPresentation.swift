@@ -75,6 +75,7 @@ enum WidgetDensityPreset: String, CaseIterable {
 
 struct WidgetLayoutMetrics: Equatable {
     let scale: CGFloat
+    let isMinimal: Bool
     let smallVertical: CGSize
     let smallHorizontal: CGSize
     let largeCollapsed: CGSize
@@ -87,8 +88,10 @@ struct WidgetLayoutMetrics: Equatable {
     init(density: WidgetDensityPreset) {
         let factor = density.scale
         scale = factor
+        isMinimal = density == .minimal
         func size(_ width: CGFloat, _ height: CGFloat) -> CGSize { CGSize(width: width * factor, height: height * factor) }
-        smallVertical = size(42, 124)
+        // Minimal is a deliberate vertical status stack, not a uniformly shrunken widget.
+        smallVertical = density == .minimal ? CGSize(width: 44, height: 110) : size(42, 124)
         smallHorizontal = size(104, 68)
         largeCollapsed = size(280, 174)
         largeExpandedBaseHeight = 456 * scale
@@ -103,6 +106,7 @@ struct WidgetLayoutMetrics: Equatable {
             first.width == second.width && first.height == second.height
         }
         return lhs.scale == rhs.scale
+            && lhs.isMinimal == rhs.isMinimal
             && equal(lhs.smallVertical, rhs.smallVertical)
             && equal(lhs.smallHorizontal, rhs.smallHorizontal)
             && equal(lhs.largeCollapsed, rhs.largeCollapsed)

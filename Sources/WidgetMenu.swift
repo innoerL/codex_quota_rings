@@ -19,7 +19,8 @@ final class WidgetMenu: NSObject {
             parent.submenu = submenu; parent.isEnabled = enabled; menu.addItem(parent)
         }
         group(localized("大小", "Size"), choices: [(localized("大", "Large"), .size(.large), preferences.size == .large), (localized("小", "Small"), .size(.small), preferences.size == .small)])
-        group(localized("小组件布局", "Small layout"), choices: [(localized("竖向", "Vertical"), .layout(.vertical), preferences.smallLayout == .vertical), (localized("横向", "Horizontal"), .layout(.horizontal), preferences.smallLayout == .horizontal)], enabled: preferences.size == .small)
+        let minimalLayout = preferences.densityPreset == .minimal
+        group(minimalLayout ? localized("小组件布局（极简固定竖向）", "Small layout (Minimal is vertical)") : localized("小组件布局", "Small layout"), choices: [(localized("竖向", "Vertical"), .layout(.vertical), preferences.smallLayout == .vertical), (localized("横向", "Horizontal"), .layout(.horizontal), preferences.smallLayout == .horizontal)], enabled: preferences.size == .small && !minimalLayout)
         group(localized("显示范围", "Visibility"), choices: [(localized("聚焦 Codex 时显示", "Show with Codex"), .scope(.focusCodex), preferences.displayScope == .focusCodex), (localized("一直显示", "Always show"), .scope(.always), preferences.displayScope == .always), (localized("聚焦桌面时显示", "Show on desktop"), .scope(.focusDesktop), preferences.displayScope == .focusDesktop)])
         group(localized("透明度", "Opacity"), choices: [(localized("不透明", "Opaque"), .opacity(.opaque), preferences.opacityPreset == .opaque), (localized("半透明", "Translucent"), .opacity(.translucent), preferences.opacityPreset == .translucent), (localized("轻透", "Light"), .opacity(.light), preferences.opacityPreset == .light)])
         group(localized("紧凑度", "Density"), choices: [(localized("标准", "Standard"), .density(.standard), preferences.densityPreset == .standard), (localized("紧凑", "Compact"), .density(.compact), preferences.densityPreset == .compact), (localized("极简", "Minimal"), .density(.minimal), preferences.densityPreset == .minimal)])
@@ -40,7 +41,9 @@ final class WidgetMenu: NSObject {
         case .layout(let layout): guard preferences.size == .small else { return }; preferences.smallLayout = layout
         case .scope(let scope): preferences.displayScope = scope
         case .opacity(let opacity): preferences.opacityPreset = opacity
-        case .density(let density): preferences.densityPreset = density
+        case .density(let density):
+            preferences.densityPreset = density
+            if density == .minimal { preferences.smallLayout = .vertical }
         case .theme(let theme): preferences.ringTheme = theme
         case .history(let retention): preferences.historyRetention = retention
         case .language(let language): preferences.language = language

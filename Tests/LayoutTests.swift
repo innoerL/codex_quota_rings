@@ -12,8 +12,11 @@ import AppKit
         precondition(compact.preferredContentSize.width < compact.preferredContentSize.height)
         precondition(QuotaView.preferredSize == NSSize(width: 42, height: 124), "compact rings must not grow")
         compact.metrics = WidgetLayoutMetrics(density: .minimal)
-        precondition(compact.preferredContentSize.width == 42 * 0.76 && compact.preferredContentSize.height == 124 * 0.76,
-                     "minimal density must resize the compact widget without a transform")
+        precondition(compact.preferredContentSize == NSSize(width: 44, height: 110),
+                     "minimal density must use the dedicated vertical stack size")
+        compact.smallLayout = .horizontal
+        precondition(compact.preferredContentSize == NSSize(width: 44, height: 110),
+                     "minimal density must keep the five-hour-over-week vertical layout")
         compact.contentOpacity = WidgetOpacityPreset.light.alpha
         precondition(compact.contentOpacity == 0.68, "compact widget must retain the selected opacity")
         AppLanguageManager.current = .english

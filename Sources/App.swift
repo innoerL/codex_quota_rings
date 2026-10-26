@@ -214,7 +214,8 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         largeView.showUsed = view.showUsed
         defaults.set(view.showUsed, forKey: "showUsed")
     }
-    func applyPreferences(_ selection: WidgetPreferences) {
+    func applyPreferences(_ incomingSelection: WidgetPreferences) {
+        let selection = incomingSelection.normalizedForDisplay()
         let previous = preferences
         let structuralChange = previous.size != selection.size || previous.smallLayout != selection.smallLayout
             || previous.displayScope != selection.displayScope || previous.densityPreset != selection.densityPreset

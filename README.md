@@ -43,6 +43,7 @@ The expanded card keeps reset timing, the five-hour forecast, confidence state, 
 ## Features
 
 - Large card, compact vertical rings, and compact horizontal rings.
+- **Minimal density** becomes a dedicated vertical status stack: the 5-hour ring is always above the weekly ring. It keeps the selected ring palette; the default semantic palette remains sage, warm gold, terracotta, and deep berry red by remaining quota.
 - Show when Codex is focused by default, always show, or show on a clear Finder desktop.
 - Native AppKit UI, 30-second quota updates, reset countdowns, and no manual refresh button.
 - A quiet local spike indicator when the last five minutes of consumption is materially faster than the earlier rolling rate, plus a gold emphasis during the final 15 minutes before the five-hour reset. Neither feature sends notifications or stores usage events.
@@ -75,7 +76,7 @@ The Simplified Chinese menu offers:
 | 小组件布局 | 竖向 / 横向 |
 | 显示范围 | 聚焦 Codex 时显示 / 一直显示 / 聚焦桌面时显示 |
 | 透明度 | 不透明（0.97）/ 半透明（0.82）/ 轻透（0.68） |
-| 紧凑度 | 标准（100%）/ 紧凑（88%）/ 极简（76%） |
+| 紧凑度 | 标准（100%）/ 紧凑（88%）/ 极简（固定为“5 小时在上、一周在下”） |
 | 环形配色 | 额度状态 / 石墨 / 暖色 / 系统强调色 |
 | 趋势记录 | 仅本次 · 30 分钟 / 保留 5 小时 |
 | 界面语言 | 中文 / English |

@@ -36,7 +36,7 @@ import AppKit
                      "density changes must preserve the saved top-left anchor")
         p.densityPreset = .minimal
         app.applyPreferences(p)
-        precondition(approximatelyEqual(app.panel.frame.size, NSSize(width: 42 * 0.76, height: 124 * 0.76)),
+        precondition(approximatelyEqual(app.panel.frame.size, NSSize(width: 44, height: 110)),
                      "every density preset must change the active frame")
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         p.size = .large; app.applyPreferences(p)

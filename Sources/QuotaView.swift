@@ -7,7 +7,7 @@ class QuotaView: NSView {
     var contentOpacity: CGFloat = WidgetOpacityPreset.opaque.alpha { didSet { needsDisplay = true } }
     var ringTheme: WidgetRingTheme = .semantic { didSet { needsDisplay = true } }
     private var baseContentSize: NSSize {
-        smallLayout == .vertical ? metrics.smallVertical : metrics.smallHorizontal
+        (metrics.isMinimal || smallLayout == .vertical) ? metrics.smallVertical : metrics.smallHorizontal
     }
     var preferredContentSize: NSSize { baseContentSize }
     var snapshot: QuotaSnapshot? { didSet { needsDisplay = true; updateTooltip() } }
@@ -79,7 +79,7 @@ class QuotaView: NSView {
     func ring(_ quota: QuotaWindow?, at center: CGPoint, title: String, radius: CGFloat = 15,
               resetEmphasis: Bool = false, isPrimary: Bool = false, showValue: Bool = true, showTitle: Bool = true) {
         let scale = radius / 15
-        if starTrailEnabled { drawStarTrail(center: center, radius: radius, scale: scale, isPrimary: isPrimary) }
+        if starTrailEnabled && !metrics.isMinimal { drawStarTrail(center: center, radius: radius, scale: scale, isPrimary: isPrimary) }
         let track = NSBezierPath(ovalIn: NSRect(x: center.x-radius, y: center.y-radius, width: radius*2, height: radius*2))
         NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.19 : 0.10).setStroke(); track.lineWidth = 1.8 * scale; track.stroke()
         let value = showUsed ? quota?.clampedUsedPercent : quota?.remainingPercent
@@ -180,8 +180,12 @@ class QuotaView: NSView {
             NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.16 : 0.07).setStroke(); surface.lineWidth = 0.5; surface.stroke()
         }
         let scale = metrics.scale
-        ring(snapshot?.fiveHour, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 26 * scale, y: 30 * scale), title: localized("5 小时", "5 hours"), radius: metrics.compactRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
-        ring(snapshot?.week, at: CGPoint(x: smallLayout == .vertical ? bounds.midX : 78 * scale, y: smallLayout == .vertical ? 86 * scale : 30 * scale), title: localized("一周", "Week"), radius: metrics.compactRingRadius)
+        let vertical = metrics.isMinimal || smallLayout == .vertical
+        let radius: CGFloat = metrics.isMinimal ? 13 : metrics.compactRingRadius
+        let fiveHourCenter = CGPoint(x: vertical ? bounds.midX : 26 * scale, y: metrics.isMinimal ? 24 : 30 * scale)
+        let weekCenter = CGPoint(x: vertical ? bounds.midX : 78 * scale, y: metrics.isMinimal ? 75 : (vertical ? 86 * scale : 30 * scale))
+        ring(snapshot?.fiveHour, at: fiveHourCenter, title: localized("5 小时", "5 hours"), radius: radius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+        ring(snapshot?.week, at: weekCenter, title: localized("一周", "Week"), radius: radius)
         if connectionError != nil || snapshot?.isStale() == true {
             QuotaLevel.caution.color.setFill()
             NSBezierPath(ovalIn: NSRect(x: bounds.midX-1.5, y: bounds.maxY-5, width: 3, height: 3)).fill()

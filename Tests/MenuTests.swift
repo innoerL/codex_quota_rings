@@ -41,6 +41,8 @@ import AppKit
         let minimal = controller.makeMenu().items[4].submenu!.items[2]
         NSApp.sendAction(minimal.action!, to: minimal.target, from: minimal)
         precondition(last?.densityPreset == .minimal && last?.opacityPreset == .translucent)
+        precondition(last?.smallLayout == .vertical,
+                     "minimal density must select the five-hour-over-week vertical layout")
         let warm = controller.makeMenu().items[5].submenu!.items[2]
         NSApp.sendAction(warm.action!, to: warm.target, from: warm)
         precondition(last?.ringTheme == .warm && last?.densityPreset == .minimal)
@@ -60,6 +62,14 @@ import AppKit
         let celebrationOff = controller.makeMenu().items[9].submenu!.items[1]
         NSApp.sendAction(celebrationOff.action!, to: celebrationOff.target, from: celebrationOff)
         precondition(last?.starTrailEnabled == false && last?.resetCelebrationEnabled == false)
+        let minimalWidget = WidgetMenu(preferences: WidgetPreferences(size: .small, smallLayout: .horizontal))
+        var minimalSelection: WidgetPreferences?
+        minimalWidget.onChange = { minimalSelection = $0 }
+        let minimalChoice = minimalWidget.makeMenu().items[4].submenu!.items[2]
+        NSApp.sendAction(minimalChoice.action!, to: minimalChoice.target, from: minimalChoice)
+        precondition(minimalSelection?.smallLayout == .vertical)
+        let minimalMenu = minimalWidget.makeMenu()
+        precondition(minimalMenu.items[1].title == "小组件布局（极简固定竖向）" && !minimalMenu.items[1].isEnabled)
         print("PASS: menu checkmarks, scope, appearance, theme, history, language, and visual-mode selection")
     }
 }
