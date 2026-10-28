@@ -15,6 +15,7 @@ final class PreviewSurface: NSView {
         let now = Date()
         let snapshot = QuotaSnapshot(fiveHour: QuotaWindow(usedPercent: 32, windowDurationMins: 300, resetsAt: now.timeIntervalSince1970 + 8760), week: QuotaWindow(usedPercent: 53, windowDurationMins: 10080, resetsAt: now.timeIntervalSince1970 + 295200), fetchedAt: now)
         let root = PreviewSurface(frame: NSRect(x: 0, y: 0, width: 324, height: 370))
+        root.appearance = NSAppearance(named: .darkAqua)
         let compact = QuotaView(frame: NSRect(origin: NSPoint(x: 5, y: 44), size: QuotaView.preferredSize))
         compact.contentOpacity = WidgetOpacityPreset.light.alpha
         precondition(compact.contentOpacity == 0.68, "the compact surface must expose its effective opacity")
@@ -29,7 +30,13 @@ final class PreviewSurface: NSView {
             QuotaHistorySample(timestamp: now, fiveHourUsedPercent: 32, weekUsedPercent: 53)
         ]
         card.frame.size = card.preferredContentSize
-        root.addSubview(compact); root.addSubview(card)
+        let minimal = QuotaView(frame: NSRect(x: 5, y: 230, width: 42, height: 42))
+        minimal.metrics = WidgetLayoutMetrics(density: .minimal)
+        minimal.snapshot = snapshot
+        root.addSubview(compact); root.addSubview(minimal); root.addSubview(card)
+        precondition(compact.palette.isDark && minimal.palette.isDark
+                     && WidgetAppearancePalette(appearance: card.effectiveAppearance).isDark,
+                     "深色系统外观应传递到所有组件")
         var opened = 0
         compact.onClick = { opened += 1 }
         let down = NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 1)!
@@ -44,7 +51,17 @@ final class PreviewSurface: NSView {
         guard (bitmap.colorAt(x: 7, y: 46)?.alphaComponent ?? 0) > 0.99 else {
             fputs("FAIL: transparent widget erased the sidebar background\n", stderr); exit(1)
         }
-        try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
-        print("PASS: compact click, no refresh button, transparent compositing and native appearance render")
+        let output = URL(fileURLWithPath: CommandLine.arguments[1])
+        try bitmap.representation(using: .png, properties: [:])!.write(to: output)
+        root.appearance = NSAppearance(named: .aqua)
+        precondition(!compact.palette.isDark && !minimal.palette.isDark
+                     && !WidgetAppearancePalette(appearance: card.effectiveAppearance).isDark,
+                     "系统切换浅色外观时组件应立即继承新外观")
+        let lightBitmap = root.bitmapImageRepForCachingDisplay(in: root.bounds)!
+        root.cacheDisplay(in: root.bounds, to: lightBitmap)
+        let lightOutput = output.deletingLastPathComponent()
+            .appendingPathComponent(output.deletingPathExtension().lastPathComponent + "-light.png")
+        try lightBitmap.representation(using: .png, properties: [:])!.write(to: lightOutput)
+        print("PASS: compact click, no refresh button, and dark/light appearance renders")
     }
 }

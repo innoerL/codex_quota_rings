@@ -2,8 +2,7 @@
 set -euo pipefail
 cd -- "${0:A:h:h}"
 
-# GitHub's macOS image can omit ripgrep. Every check below uses basic
-# grep-compatible flags, so retain the same semantics without that dependency.
+# GitHub 的 macOS 镜像可能没有 ripgrep；以下检查仅用兼容 grep 的参数。
 if (( ! $+commands[rg] )); then
     rg() { grep -E "$@"; }
 fi
@@ -31,7 +30,7 @@ for readme in README.md README.zh-CN.md; do
     rg -qi 'spike|用量突然升高' "$readme"
     rg -qi '15 minutes|15 分钟' "$readme"
     rg -qi 'graphite|石墨' "$readme"
-    rg -qi 'reset card|重置卡' "$readme"
+    rg -qi 'reset.?card|重置卡' "$readme"
     rg -qi 'hover.*trend|悬停.*趋势' "$readme"
     rg -qi 'high.?contrast|高对比' "$readme"
     rg -qi 'weekly.*never|一周额度不会' "$readme"

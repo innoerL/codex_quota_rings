@@ -48,8 +48,10 @@ private final class CountingLocator: CodexLocating {
                 return
             }
             if let value = snapshot?.fiveHour?.remainingPercent {
-                guard snapshot?.resetCreditCount == 2 else {
-                    fail("reset credit count was not decoded from the local quota response")
+                guard snapshot?.resetCreditCount == 2,
+                      snapshot?.earliestResetCreditExpiration == Date(timeIntervalSince1970: 2_000_000_000),
+                      snapshot?.planName == "Plus" else {
+                    fail("本机额度响应中的重置卡到期时间或套餐未正确解码")
                 }
                 readings.append(Int(value))
                 if readings.count == 1 { normalClient.refresh() }

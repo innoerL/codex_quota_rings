@@ -19,6 +19,13 @@ import Foundation
             alert = engine.record(snapshot(used: 11 + Double(minute - 10), at: minute))
         }
         precondition(alert == .spike, "FAIL: a five-minute rate far above the earlier rate must be shown")
+        precondition(engine.spikeEvidence?.recentIncrease == 5
+                     && engine.spikeEvidence?.speedMultiplier == 10
+                     && engine.spikeEvidence?.localizedLabel.contains("近 5 分钟 +5.0%") == true,
+                     "光环原因应来自同一次突增判定的增量与速率")
+        _ = engine.record(snapshot(used: 16, at: 15))
+        precondition(engine.spikeEvidence?.recentIncrease == 5,
+                     "重复采样不得改变光环原因")
 
         var resetEngine = QuotaUsageAlertEngine()
         for minute in 0...15 {
@@ -26,6 +33,7 @@ import Foundation
         }
         let afterReset = resetEngine.record(snapshot(used: 1, at: 16, resetAt: reset + 1_000))
         precondition(afterReset == .none, "FAIL: a reset must clear earlier anomaly evidence")
+        precondition(resetEngine.spikeEvidence == nil, "重置后应清除突增原因")
 
         let imminent = QuotaWindow(usedPercent: 20, windowDurationMins: 300,
                                    resetsAt: start.addingTimeInterval(14 * 60).timeIntervalSince1970)
@@ -35,12 +43,17 @@ import Foundation
                      "FAIL: reset emphasis must begin only in the final fifteen minutes")
         precondition(RingFeedback.resolve(usageAlert: .none, lowQuota: false) == .rest,
                      "FAIL: stable usage must keep the rings at rest")
-        precondition(RingFeedback.resolve(usageAlert: .spike, lowQuota: false) == .flowing,
-                     "FAIL: a spike must select the moving ring highlight")
+        precondition(RingFeedback.resolve(usageAlert: .spike, lowQuota: false) == .surgeHalo,
+                     "用量突增应使用扩散光环提示")
         precondition(RingFeedback.resolve(usageAlert: .none, lowQuota: true) == .breathing,
                      "FAIL: low quota must select the slow breathing halo")
-        precondition(RingFeedback.resolve(usageAlert: .spike, lowQuota: true) == .flowing,
-                     "FAIL: a current spike must take priority over low-quota breathing")
+        precondition(RingFeedback.resolve(usageAlert: .spike, lowQuota: true) == .surgeHalo,
+                     "用量突增时扩散光环应优先于低额度呼吸效果")
+        precondition(RingFeedback.surgeProgress(after: 0) == 0
+                     && RingFeedback.surgeProgress(after: 0.625) == 0.5
+                     && RingFeedback.surgeProgress(after: 1.25) == 0
+                     && RingFeedback.surgeProgress(after: 2.5) == 0,
+                     "扩散光环应每 1.25 秒循环一次")
         print("PASS: local spike detection, reset emphasis, and ring feedback states")
     }
 }

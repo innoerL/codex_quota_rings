@@ -17,7 +17,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var preferences: WidgetPreferences
     private lazy var widgetMenu = WidgetMenu(preferences: preferences)
     private var changingFrame = false
-    // Logical placement survives temporary screen-edge clamping while details are open.
+    // 展开详情时即使临时贴边调整窗口，也保留原来的逻辑位置。
     private var placementAnchor: NSPoint?
     private(set) var panel: NSPanel!
     private var statusItem: NSStatusItem!
@@ -28,11 +28,9 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var freshnessTimer: Timer?
     private var visibilityTimer: Timer?
     private var feedbackTimer: Timer?
+    private var quotaTransitionTimer: Timer?
     private var activeRingFeedback: RingFeedback = .rest
     private var ringFeedbackStartedAt: Date?
-    private var celebrationTimer: Timer?
-    private var celebrationStartedAt: Date?
-    private var lastFiveHourResetAt: TimeInterval?
     private lazy var hoverDetails = HoverDetailController { [weak self] state in self?.applyDetailState(state) }
 
     init(defaults: UserDefaults = .standard, client: QuotaClient = QuotaClient(), historyFileURL: URL? = nil) {
@@ -100,6 +98,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         configureLayout(restorePosition: true)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "circle.dashed", accessibilityDescription: localized("Codex 额度", "Codex quota"))
+        statusItem.button?.image?.isTemplate = true
         statusItem.button?.toolTip = localized("Codex 额度双环", "Codex Quota Rings")
         statusItem.button?.target = self; statusItem.button?.action = #selector(showMenu)
         client.onChange = { [weak self] snapshot, error in
@@ -145,7 +144,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         freshnessTimer?.invalidate()
         visibilityTimer?.invalidate()
         feedbackTimer?.invalidate()
-        celebrationTimer?.invalidate()
+        quotaTransitionTimer?.invalidate()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         panel?.orderOut(nil)
@@ -177,14 +176,18 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let snapshot = view.snapshot {
             let format = DateFormatter(); format.dateFormat = "MM-dd HH:mm:ss"
             info("更新：\(format.string(from: snapshot.fetchedAt))")
+            info(snapshot.planDescription)
             for (name, window) in [(localized("5小时", "5 hours"), snapshot.fiveHour), (localized("一周", "Week"), snapshot.week)] {
                 if let reset = window?.resetsAt { info(localized("\(name)重置：\(format.string(from: Date(timeIntervalSince1970: reset)))", "\(name) reset: \(format.string(from: Date(timeIntervalSince1970: reset)))")) }
             }
             if let resetCreditCount = snapshot.resetCreditCount {
-                let title = localized("可用重置卡 × \(resetCreditCount)", "Reset cards available × \(resetCreditCount)")
+                let title = snapshot.resetCreditDescription ?? localized("可用重置卡 × \(resetCreditCount)", "Reset cards available × \(resetCreditCount)")
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 item.isEnabled = false
-                if resetCreditCount > 0 { item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: QuotaLevel.caution.color]) }
+                if resetCreditCount > 0 {
+                    let color = WidgetAppearancePalette(appearance: view.effectiveAppearance).color(for: .caution)
+                    item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: color])
+                }
                 menu.addItem(item)
             }
         }
@@ -229,7 +232,6 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         detailsPanel?.title = localized("额度详情", "Quota details")
         statusItem?.button?.toolTip = localized("Codex 额度双环", "Codex Quota Rings")
         applyPresentation()
-        if !selection.resetCelebrationEnabled { stopResetCelebration() }
         if previous.historyRetention != selection.historyRetention {
             _ = historyStore.setRetention(selection.historyRetention, at: Date())
             publishHistory()
@@ -266,14 +268,13 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.hasShadow = preferences.size == .large
     }
     private func applyPresentation() {
-        let metrics = WidgetLayoutMetrics(density: preferences.densityPreset)
+        let widgetMetrics = WidgetLayoutMetrics(density: preferences.densityPreset)
+        let detailMetrics = WidgetLayoutMetrics(density: .standard)
         let opacity = lowQuotaContrastMode ? max(preferences.opacityPreset.alpha, 0.96) : preferences.opacityPreset.alpha
-        view.metrics = metrics; view.contentOpacity = opacity; view.ringTheme = preferences.ringTheme
-        largeView.metrics = metrics; largeView.contentOpacity = opacity; largeView.ringTheme = preferences.ringTheme
-        details.metrics = metrics; details.contentOpacity = opacity
-        for target in [view as QuotaView, largeView as QuotaView] {
-            target.starTrailEnabled = preferences.starTrailEnabled
-        }
+        view.metrics = widgetMetrics; view.contentOpacity = opacity; view.ringTheme = preferences.ringTheme
+        view.minimalArcOrder = preferences.minimalArcOrder
+        largeView.metrics = detailMetrics; largeView.contentOpacity = opacity; largeView.ringTheme = preferences.ringTheme
+        details.metrics = detailMetrics; details.contentOpacity = opacity
         panel?.alphaValue = opacity
         detailsPanel?.alphaValue = opacity
     }
@@ -328,25 +329,27 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             applyPresentation()
         }
         updateRingFeedback(usageAlert: usageAlert, lowQuota: contrastMode)
-        observeReset(for: snapshot)
         for target in [view as QuotaView, largeView as QuotaView] {
-            target.snapshot = snapshot
             target.connectionError = error
+            target.snapshot = snapshot
             target.forecasts = forecasts
             target.forecastChange = forecastChange
             target.hasForecastSampleData = hasForecastSampleData
             target.usageAlert = usageAlert
+            target.spikeEvidence = usageAlert == .spike ? usageAlertEngine.spikeEvidence : nil
             target.lowQuotaContrastMode = contrastMode
         }
         largeView.forecastSampleCount = forecastSampleCount
-        details.snapshot = snapshot
         details.connectionError = error
+        details.snapshot = snapshot
         details.forecasts = forecasts
         details.forecastChange = forecastChange
         details.hasForecastSampleData = hasForecastSampleData
         details.forecastSampleCount = forecastSampleCount
         details.usageAlert = usageAlert
+        details.spikeEvidence = usageAlert == .spike ? usageAlertEngine.spikeEvidence : nil
         details.lowQuotaContrastMode = contrastMode
+        updateQuotaTransitionTimer()
         if error == nil, let snapshot, !snapshot.isStale() {
             _ = historyStore.record(snapshot)
             publishHistory()
@@ -376,39 +379,30 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let elapsed = Date().timeIntervalSince(ringFeedbackStartedAt)
         let phase: CGFloat
         switch activeRingFeedback {
-        case .flowing: phase = CGFloat(elapsed * 0.55)
+        case .surgeHalo: phase = CGFloat(RingFeedback.surgeProgress(after: elapsed))
         case .breathing: phase = CGFloat(elapsed * 1.2)
         case .rest: return
         }
         view.ringFeedbackPhase = phase; largeView.ringFeedbackPhase = phase
     }
-    private func observeReset(for snapshot: QuotaSnapshot?) {
-        guard let resetAt = snapshot?.fiveHour?.resetsAt else { return }
-        defer { lastFiveHourResetAt = resetAt }
-        guard preferences.resetCelebrationEnabled, let previous = lastFiveHourResetAt,
-              abs(previous - resetAt) > 0.5 else { return }
-        startResetCelebration()
-    }
-    private func startResetCelebration() {
-        celebrationTimer?.invalidate()
-        celebrationStartedAt = Date()
-        for target in [view as QuotaView, largeView as QuotaView] { target.resetCelebrationProgress = 0 }
-        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in self?.advanceResetCelebration() }
-        celebrationTimer = timer
+    private func updateQuotaTransitionTimer() {
+        quotaTransitionTimer?.invalidate()
+        quotaTransitionTimer = nil
+        guard view.isQuotaTransitionActive || largeView.isQuotaTransitionActive
+                || details.isQuotaTransitionActive else { return }
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in self?.advanceQuotaTransition() }
+        quotaTransitionTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
-    private func advanceResetCelebration() {
-        guard let celebrationStartedAt else { return }
-        let progress = CGFloat(Date().timeIntervalSince(celebrationStartedAt) / 1.25)
-        if progress >= 1 {
-            stopResetCelebration()
-        } else {
-            view.resetCelebrationProgress = progress; largeView.resetCelebrationProgress = progress
+    private func advanceQuotaTransition() {
+        let date = Date()
+        let smallActive = view.advanceQuotaTransition(at: date)
+        let largeActive = largeView.advanceQuotaTransition(at: date)
+        let detailActive = details.advanceQuotaTransition(at: date)
+        if !smallActive && !largeActive && !detailActive {
+            quotaTransitionTimer?.invalidate()
+            quotaTransitionTimer = nil
         }
-    }
-    private func stopResetCelebration() {
-        celebrationTimer?.invalidate(); celebrationTimer = nil; celebrationStartedAt = nil
-        view.resetCelebrationProgress = nil; largeView.resetCelebrationProgress = nil
     }
     private func clearForecastChange() {
         forecastChange = nil
@@ -498,7 +492,7 @@ final class QuotaApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                   let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary) else { return false }
             return frame.width > 200 && frame.height > 150
         }
-        // Finder foreground alone also includes Finder windows. Only a clear desktop qualifies.
+        // Finder 位于前台也可能正在显示窗口；只有空白桌面符合显示条件。
         let ordinaryWindow = windows.contains { item in
             guard item[kCGWindowOwnerPID as String] as? Int != Int(ProcessInfo.processInfo.processIdentifier),
                   item[kCGWindowLayer as String] as? Int == 0,

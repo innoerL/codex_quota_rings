@@ -3,6 +3,7 @@ import Foundation
 enum WidgetSize: String, CaseIterable { case large, small }
 enum SmallLayout: String, CaseIterable { case vertical, horizontal }
 enum DisplayScope: String, CaseIterable { case focusCodex, always, focusDesktop }
+enum MinimalArcOrder: String, CaseIterable { case fiveHourTop, weekTop }
 
 struct WidgetPreferences: Equatable {
     var size: WidgetSize = .small
@@ -11,10 +12,9 @@ struct WidgetPreferences: Equatable {
     var historyRetention: HistoryRetention = .session30Minutes
     var opacityPreset: WidgetOpacityPreset = .opaque
     var densityPreset: WidgetDensityPreset = .standard
+    var minimalArcOrder: MinimalArcOrder = .fiveHourTop
     var ringTheme: WidgetRingTheme = .semantic
     var language: AppLanguage = .chinese
-    var starTrailEnabled = true
-    var resetCelebrationEnabled = true
 
     var positionKey: String {
         size == .large ? "large" : "small.\((densityPreset == .minimal ? SmallLayout.vertical : smallLayout).rawValue)"
@@ -33,10 +33,9 @@ struct WidgetPreferences: Equatable {
              historyRetention: historyRetention(from: defaults.string(forKey: "widget.historyRetention")),
              opacityPreset: defaults.string(forKey: "widget.opacityPreset").flatMap(WidgetOpacityPreset.init(rawValue:)) ?? .opaque,
              densityPreset: defaults.string(forKey: "widget.densityPreset").flatMap(WidgetDensityPreset.init(rawValue:)) ?? .standard,
+             minimalArcOrder: defaults.string(forKey: "widget.minimalArcOrder").flatMap(MinimalArcOrder.init(rawValue:)) ?? .fiveHourTop,
              ringTheme: defaults.string(forKey: "widget.ringTheme").flatMap(WidgetRingTheme.init(rawValue:)) ?? .semantic,
-             language: defaults.string(forKey: "widget.language").flatMap(AppLanguage.init(rawValue:)) ?? .chinese,
-             starTrailEnabled: defaults.object(forKey: "widget.starTrailEnabled") as? Bool ?? true,
-             resetCelebrationEnabled: defaults.object(forKey: "widget.resetCelebrationEnabled") as? Bool ?? true).normalizedForDisplay()
+             language: defaults.string(forKey: "widget.language").flatMap(AppLanguage.init(rawValue:)) ?? .chinese).normalizedForDisplay()
     }
     func save(to defaults: UserDefaults = .standard) {
         let normalized = normalizedForDisplay()
@@ -46,10 +45,11 @@ struct WidgetPreferences: Equatable {
         defaults.set(normalized.historyRetention.rawValue, forKey: "widget.historyRetention")
         defaults.set(normalized.opacityPreset.rawValue, forKey: "widget.opacityPreset")
         defaults.set(normalized.densityPreset.rawValue, forKey: "widget.densityPreset")
+        defaults.set(normalized.minimalArcOrder.rawValue, forKey: "widget.minimalArcOrder")
         defaults.set(normalized.ringTheme.rawValue, forKey: "widget.ringTheme")
         defaults.set(normalized.language.rawValue, forKey: "widget.language")
-        defaults.set(normalized.starTrailEnabled, forKey: "widget.starTrailEnabled")
-        defaults.set(normalized.resetCelebrationEnabled, forKey: "widget.resetCelebrationEnabled")
+        defaults.removeObject(forKey: "widget.starTrailEnabled")
+        defaults.removeObject(forKey: "widget.resetCelebrationEnabled")
     }
 
     private static func historyRetention(from rawValue: String?) -> HistoryRetention {

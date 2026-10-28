@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Protocol fixture: fragmented quota JSON, update, and disconnect."""
+"""模拟分段额度响应、更新事件和连接断开。"""
 import json
 import sys
 import time
@@ -11,7 +11,10 @@ def emit(message):
     sys.stdout.write(line[9:]); sys.stdout.flush()
 
 def limits(used):
-    return {'rateLimitResetCredits': {'availableCount': 2}, 'rateLimitsByLimitId': {'codex': {
+    return {'rateLimitResetCredits': {'availableCount': 2, 'credits': [
+        {'status': 'available', 'expiresAt': 2000000000},
+        {'status': 'available', 'expiresAt': 2000000100}]}, 'rateLimitsByLimitId': {'codex': {
+        'planType': 'plus',
         'primary': {'usedPercent': used, 'windowDurationMins': 300, 'resetsAt': 2000000000},
         'secondary': {'usedPercent': 76, 'windowDurationMins': 10080, 'resetsAt': 2000000000}}}}
 

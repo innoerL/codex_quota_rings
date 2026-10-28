@@ -16,7 +16,7 @@ compile Sources/QuotaModel.swift Sources/QuotaForecast.swift Tests/ForecastTests
 "$quota_test_dir/forecast"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Tests/QuotaHistoryTests.swift -o "$quota_test_dir/history"
 "$quota_test_dir/history"
-compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/QuotaTrend.swift Tests/QuotaTrendTests.swift -o "$quota_test_dir/trend"
+compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPresentation.swift Sources/QuotaTrend.swift Tests/QuotaTrendTests.swift -o "$quota_test_dir/trend"
 "$quota_test_dir/trend"
 compile Sources/QuotaModel.swift Sources/QuotaHistory.swift Sources/WidgetPresentation.swift Sources/WidgetPreferences.swift Tests/WidgetPresentationTests.swift -o "$quota_test_dir/presentation"
 "$quota_test_dir/presentation"

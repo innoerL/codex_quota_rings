@@ -1,9 +1,28 @@
 import AppKit
 
-/// A single window surface: opening details changes its height, never opens a popover.
+/// 大卡片在原窗口内展开详情，并调整窗口高度。
 final class LargeQuotaView: QuotaView {
     static let collapsedSize = NSSize(width: 280, height: 174)
-    private static let expandedBaseHeight: CGFloat = 456
+    struct ExpandedRegions {
+        let weeklyReset: NSRect
+        let weeklyPace: NSRect
+        let forecastBasis: NSRect
+        let trend: NSRect
+        let accountPlan: NSRect
+        let resetCredit: NSRect
+        let footer: NSRect
+    }
+    static func expandedRegions(scale: CGFloat) -> ExpandedRegions {
+        ExpandedRegions(
+            weeklyReset: NSRect(x: 16 * scale, y: 280 * scale, width: 248 * scale, height: 19 * scale),
+            weeklyPace: NSRect(x: 16 * scale, y: 305 * scale, width: 248 * scale, height: 19 * scale),
+            forecastBasis: NSRect(x: 12 * scale, y: 336 * scale, width: 256 * scale, height: 42 * scale),
+            trend: NSRect(x: 16 * scale, y: 390 * scale, width: 248 * scale, height: 96 * scale),
+            accountPlan: NSRect(x: 16 * scale, y: 493 * scale, width: 248 * scale, height: 19 * scale),
+            resetCredit: NSRect(x: 16 * scale, y: 513 * scale, width: 248 * scale, height: 19 * scale),
+            footer: NSRect(x: 16 * scale, y: 536 * scale, width: 248 * scale, height: 19 * scale)
+        )
+    }
     private var guidanceHeight: CGFloat { isExpanded && guidanceTitle != nil ? 38 * metrics.scale : 0 }
     override var preferredContentSize: NSSize {
         return NSSize(width: metrics.largeCollapsed.width, height: isExpanded ? metrics.largeExpandedBaseHeight + guidanceHeight : metrics.largeCollapsed.height)
@@ -28,7 +47,7 @@ final class LargeQuotaView: QuotaView {
     override func mouseMoved(with event: NSEvent) {
         guard isExpanded else { trendHover = nil; return }
         let scale = metrics.scale
-        let trendRect = NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale)
+        let trendRect = Self.expandedRegions(scale: scale).trend
         let chart = QuotaTrendRenderer.chartRect(in: trendRect)
         let location = convert(event.locationInWindow, from: nil)
         guard chart.contains(location) else { trendHover = nil; return }
@@ -41,14 +60,14 @@ final class LargeQuotaView: QuotaView {
     override func draw(_ dirtyRect: NSRect) {
         let scale = metrics.scale
         let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 16, yRadius: 16)
-        NSColor(white: lowQuotaContrastMode ? 0.09 : 0.14, alpha: lowQuotaContrastMode ? 1 : 0.97).setFill(); card.fill()
-        NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.11).setStroke(); card.lineWidth = 1; card.stroke()
+        (lowQuotaContrastMode ? palette.highContrastSurface : palette.surface).setFill(); card.fill()
+        (lowQuotaContrastMode ? palette.highContrastBorder : palette.border).setStroke(); card.lineWidth = 1; card.stroke()
         label(showUsed ? localized("已用额度", "Used quota") : localized("剩余额度", "Remaining quota"), x: 16 * scale, y: 16 * scale, size: 12 * scale, weight: .semibold, color: .secondaryLabelColor)
-        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: localized("5 小时", "5 hours"), radius: metrics.largeRingRadius, resetEmphasis: snapshot?.fiveHour?.isResetImminent() == true, isPrimary: true)
+        ring(snapshot?.fiveHour, at: CGPoint(x: 80 * scale, y: 77 * scale), title: localized("5 小时", "5 hours"), radius: metrics.largeRingRadius, isPrimary: true)
         ring(snapshot?.week, at: CGPoint(x: 200 * scale, y: 77 * scale), title: localized("一周", "Week"), radius: metrics.largeRingRadius)
         let stale = connectionError != nil || snapshot?.isStale() == true
         if stale {
-            QuotaLevel.caution.color.withAlphaComponent(0.7).setFill()
+            palette.color(for: .caution).withAlphaComponent(0.7).setFill()
             NSBezierPath(ovalIn: NSRect(x: 258 * scale, y: 21 * scale, width: 5 * scale, height: 5 * scale)).fill()
         }
         let status: String
@@ -59,12 +78,12 @@ final class LargeQuotaView: QuotaView {
         case .disconnected: status = localized("连接中断 · 自动重试", "Connection interrupted · retrying"); statusColor = .secondaryLabelColor
         case .locating where snapshot == nil: status = localized("正在查找 Codex…", "Looking for Codex…"); statusColor = .secondaryLabelColor
         default:
-            if usageAlert == .spike {
-                status = localized("用量突然升高", "Usage rose sharply"); statusColor = QuotaLevel.low.color
+            if showsSpikeHalo {
+                status = spikeEvidence?.localizedLabel ?? localized("用量突然升高", "Usage rose sharply"); statusColor = palette.color(for: .low)
             } else if let forecastChange {
-                status = forecastChange.localizedLabel; statusColor = forecastChange.level.color
+                status = forecastChange.localizedLabel; statusColor = palette.color(for: forecastChange.level)
             } else if snapshot?.fiveHour?.isResetImminent() == true {
-                status = localized("5 小时额度即将重置", "5-hour quota resets soon"); statusColor = QuotaLevel.caution.color
+                status = localized("5 小时额度即将重置", "5-hour quota resets soon"); statusColor = palette.color(for: .caution)
             } else {
                 status = snapshot == nil ? localized("正在读取额度…", "Reading quota…") : stale ? localized("数据可能已过期", "Data may be stale") : localized("每 30 秒自动更新", "Updates every 30 seconds")
                 statusColor = .secondaryLabelColor
@@ -77,37 +96,56 @@ final class LargeQuotaView: QuotaView {
         chevron.line(to: NSPoint(x: 262 * scale, y: (isExpanded ? 156 : 152) * scale))
         NSColor.secondaryLabelColor.setStroke(); chevron.lineWidth = 1.5 * scale; chevron.lineCapStyle = .round; chevron.lineJoinStyle = .round; chevron.stroke()
         if isExpanded {
-            NSColor.white.withAlphaComponent(0.09).setFill()
+            let regions = Self.expandedRegions(scale: scale)
+            palette.foreground.withAlphaComponent(0.09).setFill()
             NSRect(x: 1, y: metrics.largeCollapsed.height - scale, width: bounds.width-2, height: 0.5 * scale).fill()
             for (index, item) in [(localized("5 小时", "5 hours"), snapshot?.fiveHour, forecasts.fiveHour), (localized("一周", "Week"), snapshot?.week, forecasts.week)].enumerated() {
                 let y = CGFloat(191 + index * 66) * scale
                 label(item.0, x: 16 * scale, y: y, size: 13 * scale, weight: .medium)
-                let value = showUsed ? item.1?.clampedUsedPercent : item.1?.remainingPercent
+                let used = displayedUsedPercent(for: item.1, isPrimary: index == 0)
+                let value = showUsed ? used : used.map { 100 - $0 }
                 label(value.map { "\(Int($0.rounded()))%" } ?? "—", x: 212 * scale, y: y, size: 13 * scale, weight: .semibold, color: stale ? .tertiaryLabelColor : .labelColor)
                 let resetImminent = index == 0 && item.1?.isResetImminent() == true
-                label(item.1?.resetDescription() ?? localized("重置时间暂不可用", "Reset time unavailable"), x: 16 * scale, y: y + 23 * scale, size: 10.5 * scale, weight: resetImminent ? .medium : .regular, color: resetImminent ? QuotaLevel.caution.color : .secondaryLabelColor)
+                let resetY = index == 0 ? y + 23 * scale : regions.weeklyReset.minY
+                label(item.1?.resetDescription() ?? localized("重置时间暂不可用", "Reset time unavailable"), x: 16 * scale, y: resetY, size: 10.5 * scale, weight: resetImminent ? .medium : .regular, color: resetImminent ? palette.color(for: .caution) : .secondaryLabelColor)
                 if index == 0 {
                     label(forecastText(item.2), x: 16 * scale, y: y + 41 * scale, size: 10.5 * scale, weight: .medium, color: forecastColor(item.2))
+                } else if !stale, let pace = item.1?.weeklyPace(at: snapshot?.fetchedAt ?? Date()) {
+                    label(pace.localizedLabel, x: regions.weeklyPace.minX, y: regions.weeklyPace.minY, size: 9.5 * scale,
+                          weight: .medium, color: pace.state == .ahead ? palette.color(for: .caution) : .secondaryLabelColor)
                 }
             }
-            NSColor.white.withAlphaComponent(0.04).setFill()
-            NSBezierPath(roundedRect: NSRect(x: 12 * scale, y: 286 * scale, width: 256 * scale, height: 27 * scale),
+            palette.foreground.withAlphaComponent(0.04).setFill()
+            NSBezierPath(roundedRect: regions.forecastBasis,
                          xRadius: 7 * scale, yRadius: 7 * scale).fill()
-            label(forecasts.fiveHour.explanation, x: 16 * scale, y: 292 * scale, size: 9.5 * scale,
-                  color: .secondaryLabelColor)
-            let trendRect = NSRect(x: 16 * scale, y: 322 * scale, width: 248 * scale, height: 96 * scale)
-            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention, in: trendRect)
+            let basisStyle = NSMutableParagraphStyle()
+            basisStyle.lineBreakMode = .byWordWrapping
+            (forecasts.fiveHour.explanation as NSString).draw(
+                in: regions.forecastBasis.insetBy(dx: 4 * scale, dy: 5 * scale),
+                withAttributes: [.font: NSFont.systemFont(ofSize: 9.5 * scale),
+                                 .foregroundColor: NSColor.secondaryLabelColor,
+                                 .paragraphStyle: basisStyle]
+            )
+            let trendRect = regions.trend
+            QuotaTrendRenderer.draw(samples: historySamples, retention: historyRetention, in: trendRect,
+                                    appearance: effectiveAppearance)
             if let trendHover, let range = QuotaTrendRenderer.timeRange(for: historySamples) {
                 let span = range.end.timeIntervalSince(range.start)
                 let position = span > 0 ? trendHover.sample.timestamp.timeIntervalSince(range.start) / span : 0
-                QuotaTrendRenderer.drawHover(trendHover, position: position, in: trendRect)
+                QuotaTrendRenderer.drawHover(trendHover, position: position, in: trendRect,
+                                             appearance: effectiveAppearance)
+            }
+            if let snapshot {
+                label(snapshot.planDescription, x: regions.accountPlan.minX, y: regions.accountPlan.minY, size: 10 * scale, color: .secondaryLabelColor)
+                if let credit = snapshot.resetCreditCompactDescription {
+                    label(credit, x: regions.resetCredit.minX, y: regions.resetCredit.minY, size: 10 * scale, color: .secondaryLabelColor)
+                }
             }
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
             let footer = snapshot.map {
-                let credit = $0.resetCreditCount.map { localized(" · 重置卡 × \($0)", " · reset cards × \($0)") } ?? ""
-                return localized("最近更新 \(format.string(from: $0.fetchedAt)) · 预测采样 \(forecastSampleCount) 个\(credit)", "Updated \(format.string(from: $0.fetchedAt)) · \(forecastSampleCount) forecast samples\(credit)")
+                localized("最近更新 \(format.string(from: $0.fetchedAt)) · 预测采样 \(forecastSampleCount) 个", "Updated \(format.string(from: $0.fetchedAt)) · \(forecastSampleCount) forecast samples")
             } ?? localized("等待额度数据", "Waiting for quota data")
-            label(footer, x: 16 * scale, y: 432 * scale, size: 10 * scale, color: .secondaryLabelColor)
+            label(footer, x: regions.footer.minX, y: regions.footer.minY, size: 10 * scale, color: .secondaryLabelColor)
         }
     }
     private var guidanceTitle: String? {

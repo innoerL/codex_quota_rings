@@ -1,18 +1,43 @@
 import AppKit
 
-/// Native popover material and labels; all data updates are automatic.
+/// 原生弹出卡片材质与文字，所有数据均自动更新。
 final class QuotaDetailsView: NSView {
-    static let preferredSize = NSSize(width: 246, height: 284)
+    static let preferredSize = NSSize(width: 246, height: 324)
     private var guidanceHeight: CGFloat { guidanceTitle == nil ? 0 : 38 * metrics.scale }
     var preferredContentSize: NSSize { NSSize(width: metrics.detail.width, height: metrics.detail.height + guidanceHeight) }
     var metrics = WidgetLayoutMetrics(density: .standard) { didSet { applyPresentation() } }
     var contentOpacity: CGFloat = WidgetOpacityPreset.opaque.alpha { didSet { applyPresentation() } }
-    var snapshot: QuotaSnapshot? { didSet { updateLabels() } }
+    private var fiveHourTransition: QuotaDisplayTransition?
+    private var weekTransition: QuotaDisplayTransition?
+    var snapshot: QuotaSnapshot? {
+        didSet {
+            let date = Date()
+            if connectionError == nil, oldValue?.isStale(at: date) == false,
+               let next = snapshot, !next.isStale(at: date),
+               let previous = oldValue, next.fetchedAt > previous.fetchedAt {
+                let oldFive = displayedUsedPercent(for: previous.fiveHour, isPrimary: true, at: date)
+                let oldWeek = displayedUsedPercent(for: previous.week, isPrimary: false, at: date)
+                fiveHourTransition = QuotaDisplayTransition.make(from: previous.fiveHour, to: next.fiveHour,
+                                                                 displayedUsedPercent: oldFive, at: date)
+                weekTransition = QuotaDisplayTransition.make(from: previous.week, to: next.week,
+                                                             displayedUsedPercent: oldWeek, at: date)
+            } else {
+                fiveHourTransition = nil
+                weekTransition = nil
+            }
+            updateLabels()
+        }
+    }
     var forecasts = QuotaForecasts.collecting { didSet { updateLabels() } }
     var forecastChange: ForecastChange? { didSet { updateLabels() } }
     var hasForecastSampleData = false { didSet { updateLabels() } }
     var forecastSampleCount = 0 { didSet { updateLabels() } }
-    var connectionError: String? { didSet { updateLabels() } }
+    var connectionError: String? {
+        didSet {
+            if connectionError != nil { fiveHourTransition = nil; weekTransition = nil }
+            updateLabels()
+        }
+    }
     var connectionState: QuotaConnectionState = .locating { didSet { updateLabels(); rebuildGuidance() } }
     var historySamples: [QuotaHistorySample] = [] { didSet { trend.samples = historySamples } }
     var historyRetention: HistoryRetention = .session30Minutes { didSet { trend.retention = historyRetention } }
@@ -21,29 +46,47 @@ final class QuotaDetailsView: NSView {
     var onPointerExited: (() -> Void)?
     var showUsed = false { didSet { updateLabels() } }
     var usageAlert: QuotaUsageAlert = .none { didSet { updateLabels() } }
+    var spikeEvidence: QuotaSpikeEvidence? { didSet { updateLabels() } }
     var lowQuotaContrastMode = false { didSet { applyPresentation() } }
     private let material = NSVisualEffectView()
     private var titles: [NSTextField] = []
     private var values: [NSTextField] = []
     private var resets: [NSTextField] = []
     private var forecastLabels: [NSTextField] = []
+    private var planLabel: NSTextField!
+    private var resetCreditLabel: NSTextField!
     private var updated: NSTextField!
     private var automatic: NSTextField!
     private let trend = QuotaTrendView()
     private var guidanceButton: NSButton?
     private var baseFrames: [ObjectIdentifier: NSRect] = [:]
     private var hoverTracking: NSTrackingArea?
+    var isQuotaTransitionActive: Bool {
+        let date = Date()
+        return fiveHourTransition?.isActive(at: date) == true || weekTransition?.isActive(at: date) == true
+    }
+    @discardableResult func advanceQuotaTransition(at date: Date = Date()) -> Bool {
+        let wasAnimating = fiveHourTransition != nil || weekTransition != nil
+        if fiveHourTransition?.isActive(at: date) == false { fiveHourTransition = nil }
+        if weekTransition?.isActive(at: date) == false { weekTransition = nil }
+        if wasAnimating { updateLabels() }
+        return fiveHourTransition != nil || weekTransition != nil
+    }
+    private func displayedUsedPercent(for quota: QuotaWindow?, isPrimary: Bool, at date: Date) -> Double? {
+        guard let used = quota?.clampedUsedPercent else { return nil }
+        let transition = isPrimary ? fiveHourTransition : weekTransition
+        return transition?.usedPercent(at: date) ?? used
+    }
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        appearance = NSAppearance(named: .darkAqua)
         wantsLayer = true
         layer?.cornerRadius = 14
         layer?.masksToBounds = true
         layer?.borderWidth = 0.5
-        layer?.borderColor = NSColor.white.withAlphaComponent(lowQuotaContrastMode ? 0.20 : 0.12).cgColor
+        layer?.borderColor = palette.border.cgColor
         material.frame = bounds
         material.autoresizingMask = [.width, .height]
         material.material = .popover
@@ -62,16 +105,24 @@ final class QuotaDetailsView: NSView {
         trend.frame = NSRect(x: 16, y: 148, width: 214, height: 96)
         trend.autoresizingMask = [.width]
         addSubview(trend)
-        let separator = NSBox(frame: NSRect(x: 16, y: 246, width: 214, height: 1))
+        planLabel = label("", frame: NSRect(x: 16, y: 251, width: 214, height: 15), font: .systemFont(ofSize: 9.5), color: .secondaryLabelColor)
+        resetCreditLabel = label("", frame: NSRect(x: 16, y: 269, width: 214, height: 15), font: .systemFont(ofSize: 9.5), color: .secondaryLabelColor)
+        let separator = NSBox(frame: NSRect(x: 16, y: 288, width: 214, height: 1))
         separator.boxType = .separator; addSubview(separator)
-        updated = label("", frame: NSRect(x: 16, y: 257, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
-        automatic = label(localized("自动刷新", "Auto refresh"), frame: NSRect(x: 177, y: 257, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
+        updated = label("", frame: NSRect(x: 16, y: 301, width: 160, height: 14), font: .systemFont(ofSize: 9), color: .secondaryLabelColor)
+        automatic = label(localized("自动刷新", "Auto refresh"), frame: NSRect(x: 177, y: 301, width: 53, height: 14), font: .systemFont(ofSize: 9), color: .tertiaryLabelColor)
         automatic.alignment = .right
         captureBaseFrames()
         applyPresentation()
         updateLabels()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    private var palette: WidgetAppearancePalette { WidgetAppearancePalette(appearance: effectiveAppearance) }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyPresentation()
+        trend.needsDisplay = true
+    }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let hoverTracking { removeTrackingArea(hoverTracking) }
@@ -94,7 +145,7 @@ final class QuotaDetailsView: NSView {
     private func applyPresentation() {
         let scale = metrics.scale
         layer?.cornerRadius = 14 * scale
-        layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        layer?.borderColor = (lowQuotaContrastMode ? palette.highContrastBorder : palette.border).cgColor
         material.alphaValue = 1
         material.material = lowQuotaContrastMode ? .sidebar : .popover
         material.frame = bounds
@@ -103,23 +154,29 @@ final class QuotaDetailsView: NSView {
             subview.frame = NSRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
         }
         needsDisplay = true
+        updateLabels()
     }
     func updateLabels() {
         guard values.count == 2, updated != nil else { return }
         let outdated = connectionError != nil || snapshot?.isStale() == true
         for (index, quota) in [snapshot?.fiveHour, snapshot?.week].enumerated() {
-            let value = showUsed ? quota?.clampedUsedPercent : quota?.remainingPercent
+            let used = displayedUsedPercent(for: quota, isPrimary: index == 0, at: Date())
+            let value = showUsed ? used : used.map { 100 - $0 }
             values[index].stringValue = value.map { "\(Int($0.rounded()))%" } ?? "—"
             values[index].textColor = outdated ? .tertiaryLabelColor : .labelColor
             resets[index].stringValue = quota?.resetDescription() ?? localized("重置时间暂不可用", "Reset time unavailable")
-            resets[index].textColor = index == 0 && quota?.isResetImminent() == true ? QuotaLevel.caution.color : .secondaryLabelColor
+            resets[index].textColor = index == 0 && quota?.isResetImminent() == true ? palette.color(for: .caution) : .secondaryLabelColor
             if index == 0 {
                 forecastLabels[index].stringValue = forecastText(forecasts.fiveHour)
                 forecastLabels[index].textColor = forecastColor(forecasts.fiveHour)
             } else {
-                forecastLabels[index].stringValue = ""
+                let pace = outdated ? nil : quota?.weeklyPace(at: snapshot?.fetchedAt ?? Date())
+                forecastLabels[index].stringValue = pace?.localizedLabel ?? ""
+                forecastLabels[index].textColor = pace?.state == .ahead ? palette.color(for: .caution) : .secondaryLabelColor
             }
         }
+        planLabel.stringValue = snapshot?.planDescription ?? ""
+        resetCreditLabel.stringValue = snapshot?.resetCreditCompactDescription ?? ""
         switch connectionState {
         case .codexNotInstalled: updated.stringValue = localized("未找到 Codex", "Codex was not found")
         case .authenticationRequired: updated.stringValue = localized("请先在 Codex 中登录", "Please sign in to Codex first")
@@ -127,14 +184,17 @@ final class QuotaDetailsView: NSView {
         case .locating where snapshot == nil: updated.stringValue = localized("正在查找 Codex…", "Looking for Codex…")
         default: if let snapshot {
             let format = DateFormatter(); format.dateFormat = "HH:mm:ss"
-            let signal = usageAlert.localizedLabel ?? forecastChange?.localizedLabel
+            let spike = usageAlert == .spike && !outdated
+            let signal = (spike ? spikeEvidence?.localizedLabel ?? usageAlert.localizedLabel : nil) ?? forecastChange?.localizedLabel
                 ?? (snapshot.fiveHour?.isResetImminent() == true ? localized("5 小时额度即将重置", "5-hour quota resets soon") : nil)
             updated.stringValue = signal ?? (localized("最近更新 \(format.string(from: snapshot.fetchedAt))", "Updated \(format.string(from: snapshot.fetchedAt))") + (outdated ? localized(" · 已过期", " · stale") : ""))
             updated.textColor = signal == nil ? .secondaryLabelColor
-                : (usageAlert == .spike ? QuotaLevel.low.color : forecastChange?.level.color ?? QuotaLevel.caution.color)
+                : (spike ? palette.color(for: .low) : forecastChange.map { palette.color(for: $0.level) } ?? palette.color(for: .caution))
         } else { updated.stringValue = localized("正在读取额度…", "Reading quota…"); updated.textColor = .secondaryLabelColor }
         }
-        automatic.stringValue = showUsed ? localized("已用额度", "Used quota") : localized("采样 \(forecastSampleCount)", "\(forecastSampleCount) samples")
+        let spike = usageAlert == .spike && spikeEvidence != nil && !outdated
+        updated.frame.size.width = (spike ? 214 : 160) * metrics.scale
+        automatic.stringValue = spike ? "" : showUsed ? localized("已用额度", "Used quota") : localized("采样 \(forecastSampleCount)", "\(forecastSampleCount) samples")
     }
     private func forecastText(_ forecast: QuotaForecast) -> String {
         guard connectionError == nil, snapshot?.isStale() != true else {
@@ -170,9 +230,9 @@ final class QuotaDetailsView: NSView {
         case .unstable: return .secondaryLabelColor
         case .depletedAt:
             switch forecast.confidence {
-            case .high: return QuotaLevel.ample.color
-            case .medium: return QuotaLevel.caution.color
-            case .low: return QuotaLevel.low.color
+            case .high: return palette.color(for: .ample)
+            case .medium: return palette.color(for: .caution)
+            case .low: return palette.color(for: .low)
             case nil: return .secondaryLabelColor
             }
         case .collecting, .willNotDeplete: return .secondaryLabelColor

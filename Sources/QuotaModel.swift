@@ -26,6 +26,15 @@ struct QuotaWindow: Decodable {
         return min(100, max(0, usedPercent))
     }
     var remainingPercent: Double? { clampedUsedPercent.map { 100 - $0 } }
+    func weeklyPace(at date: Date = Date()) -> WeeklyUsagePace? {
+        guard windowDurationMins == 10_080,
+              let used = clampedUsedPercent,
+              let resetsAt, resetsAt.isFinite else { return nil }
+        let duration = TimeInterval(10_080 * 60)
+        let remaining = resetsAt - date.timeIntervalSince1970
+        guard remaining > 0, remaining <= duration else { return nil }
+        return WeeklyUsagePace(usedPercent: used, elapsedPercent: (1 - remaining / duration) * 100)
+    }
     var level: QuotaLevel {
         guard let remainingPercent else { return .unknown }
         if remainingPercent >= 65 { return .ample }
@@ -54,13 +63,73 @@ struct QuotaWindow: Decodable {
     }
 }
 
+struct QuotaDisplayTransition {
+    static let duration: TimeInterval = 0.28
+    let fromUsedPercent: Double
+    let toUsedPercent: Double
+    let startedAt: Date
+
+    static func make(from previous: QuotaWindow?, to current: QuotaWindow?,
+                     displayedUsedPercent: Double?, at date: Date) -> Self? {
+        guard let previous, let current,
+              let oldUsed = previous.clampedUsedPercent,
+              let newUsed = current.clampedUsedPercent,
+              let displayedUsedPercent,
+              newUsed + 0.25 >= oldUsed,
+              abs(newUsed - displayedUsedPercent) >= 0.1 else { return nil }
+        switch (previous.resetsAt, current.resetsAt) {
+        case (nil, nil): break
+        case let (old?, new?) where old.isFinite && new.isFinite && abs(old - new) <= 0.5: break
+        default: return nil
+        }
+        return Self(fromUsedPercent: displayedUsedPercent, toUsedPercent: newUsed, startedAt: date)
+    }
+
+    func usedPercent(at date: Date) -> Double {
+        let progress = min(1, max(0, date.timeIntervalSince(startedAt) / Self.duration))
+        let eased = progress * progress * (3 - 2 * progress)
+        return fromUsedPercent + (toUsedPercent - fromUsedPercent) * eased
+    }
+
+    func isActive(at date: Date) -> Bool { date.timeIntervalSince(startedAt) < Self.duration }
+}
+
+struct WeeklyUsagePace {
+    enum State { case ahead, balanced, below }
+    let usedPercent: Double
+    let elapsedPercent: Double
+    var state: State {
+        let difference = usedPercent - elapsedPercent
+        if difference > 10 { return .ahead }
+        if difference < -10 { return .below }
+        return .balanced
+    }
+    var localizedLabel: String {
+        let used = Int(usedPercent.rounded()), elapsed = Int(elapsedPercent.rounded())
+        let stateLabel: String
+        switch state {
+        case .ahead: stateLabel = localized("偏快", "fast")
+        case .balanced: stateLabel = localized("平稳", "on pace")
+        case .below: stateLabel = localized("偏慢", "slow")
+        }
+        return localized("周节奏：已用 \(used)% / 已过 \(elapsed)% · \(stateLabel)",
+                         "Week: \(used)% used / \(elapsed)% elapsed · \(stateLabel)")
+    }
+}
+
 private struct QuotaBucket: Decodable {
     let limitId: String?
+    let planType: String?
     let primary: QuotaWindow?
     let secondary: QuotaWindow?
 }
+private struct QuotaResetCredit: Decodable {
+    let status: String?
+    let expiresAt: Double?
+}
 private struct QuotaResetCredits: Decodable {
     let availableCount: Int?
+    let credits: [QuotaResetCredit]?
 }
 private struct QuotaResponse: Decodable {
     let rateLimits: QuotaBucket?
@@ -71,14 +140,61 @@ private struct QuotaResponse: Decodable {
 struct QuotaSnapshot {
     let fiveHour: QuotaWindow?
     let week: QuotaWindow?
-    /// Saved one-time quota resets reported by the local Codex app-server.
+    /// 本机 Codex app-server 返回的可用一次性额度重置次数。
     let resetCreditCount: Int?
+    let earliestResetCreditExpiration: Date?
+    let planName: String?
     let fetchedAt: Date
-    init(fiveHour: QuotaWindow?, week: QuotaWindow?, resetCreditCount: Int? = nil, fetchedAt: Date) {
+    init(fiveHour: QuotaWindow?, week: QuotaWindow?, resetCreditCount: Int? = nil,
+         earliestResetCreditExpiration: Date? = nil, planName: String? = nil, fetchedAt: Date) {
         self.fiveHour = fiveHour
         self.week = week
         self.resetCreditCount = resetCreditCount
+        self.earliestResetCreditExpiration = earliestResetCreditExpiration
+        self.planName = planName
         self.fetchedAt = fetchedAt
+    }
+    var planDescription: String {
+        localized("当前套餐：\(planName ?? "暂不可用")", "Current plan: \(planName ?? "unavailable")")
+    }
+    var resetCreditDescription: String? {
+        guard let resetCreditCount else { return nil }
+        let count = localized("可用重置卡 × \(resetCreditCount)", "Reset cards available × \(resetCreditCount)")
+        guard resetCreditCount > 0 else { return count }
+        guard let earliestResetCreditExpiration else {
+            return count + localized(" · 未提供到期时间", " · expiration unavailable")
+        }
+        let format = DateFormatter(); format.dateFormat = "M/d HH:mm"
+        return count + localized(" · 最早到期 \(format.string(from: earliestResetCreditExpiration))",
+                                 " · earliest expiry \(format.string(from: earliestResetCreditExpiration))")
+    }
+    var resetCreditCompactDescription: String? {
+        guard let resetCreditCount else { return nil }
+        let count = localized("重置卡 × \(resetCreditCount)", "Cards × \(resetCreditCount)")
+        guard resetCreditCount > 0 else { return count }
+        guard let earliestResetCreditExpiration else {
+            return count + localized(" · 到期时间未提供", " · no expiry data")
+        }
+        let format = DateFormatter(); format.dateFormat = "M/d HH:mm"
+        return count + localized(" · 最近到期 \(format.string(from: earliestResetCreditExpiration))",
+                                 " · earliest \(format.string(from: earliestResetCreditExpiration))")
+    }
+    private static func displayPlanName(_ value: String?) -> String? {
+        guard let value, value != "unknown" else { return nil }
+        switch value {
+        case "free": return "Free"
+        case "go": return "Go"
+        case "plus": return "Plus"
+        case "pro": return "Pro"
+        case "prolite": return "Pro Lite"
+        case "promax": return "Pro Max"
+        case "team": return "Team"
+        case "business", "self_serve_business_prolite", "self_serve_business_usage_based": return "Business"
+        case "enterprise", "ent26", "enterprise_cbp_automation", "enterprise_cbp_usage_based": return "Enterprise"
+        case "edu", "edu_plus", "edu_pro": return "Edu"
+        case "sci", "sci_plus": return "Sci"
+        default: return nil
+        }
     }
     static func decode(_ data: Data, at date: Date = Date()) throws -> QuotaSnapshot {
         let response = try JSONDecoder().decode(QuotaResponse.self, from: data)
@@ -89,9 +205,17 @@ struct QuotaSnapshot {
             bucket = response.rateLimits
         } else { bucket = nil }
         let windows = [bucket?.primary, bucket?.secondary].compactMap { $0 }
+        let resetCredits = response.rateLimitResetCredits
+        let expiry = resetCredits?.credits?.compactMap { credit -> Date? in
+            guard credit.status == "available", let timestamp = credit.expiresAt,
+                  timestamp.isFinite, timestamp > date.timeIntervalSince1970 else { return nil }
+            return Date(timeIntervalSince1970: timestamp)
+        }.min()
         return QuotaSnapshot(fiveHour: windows.first { $0.windowDurationMins == 300 },
                              week: windows.first { $0.windowDurationMins == 10080 },
-                             resetCreditCount: response.rateLimitResetCredits?.availableCount.map { max(0, $0) },
+                             resetCreditCount: resetCredits?.availableCount.map { max(0, $0) },
+                             earliestResetCreditExpiration: expiry,
+                             planName: displayPlanName(bucket?.planType),
                              fetchedAt: date)
     }
     func isStale(at date: Date = Date()) -> Bool { date.timeIntervalSince(fetchedAt) > 90 }

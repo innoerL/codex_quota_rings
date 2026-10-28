@@ -69,8 +69,8 @@ struct QuotaForecast: Equatable {
             return localized("预测依据：\(sampleCount) 个采样 · \(span) · 等待消耗数据", "Forecast basis: \(sampleCount) samples · \(span) · waiting for consumption data")
         }
         let confidenceText = confidence.map { localized(" · 可信度：\($0.chineseLabel)", " · confidence: \($0.englishLabel)") } ?? ""
-        return localized(String(format: "预测依据：%d 个采样 · %@ · %.1f%%/小时%@", sampleCount, span, hourlyConsumption, confidenceText),
-                         String(format: "Forecast basis: %d samples · %@ · %.1f%%/hour%@", sampleCount, span, hourlyConsumption, confidenceText))
+        return localized(String(format: "预测依据：%d 个采样 · %@\n%.1f%%/小时%@", sampleCount, span, hourlyConsumption, confidenceText),
+                         String(format: "Forecast basis: %d samples · %@\n%.1f%%/hour%@", sampleCount, span, hourlyConsumption, confidenceText))
     }
 }
 

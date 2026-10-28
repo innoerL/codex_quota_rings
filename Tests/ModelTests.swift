@@ -14,6 +14,18 @@ import Foundation
         expect(normal.fiveHour?.remainingPercent == 20, "80% used means 20% remaining")
         expect(normal.week?.remainingPercent == 24, "weekly quota is independent")
         expect(normal.resetCreditCount == 2, "available reset credits are decoded from the Codex rate limit response")
+        expect(normal.earliestResetCreditExpiration == nil && normal.resetCreditDescription?.contains("未提供到期时间") == true,
+               "只有重置卡总数时不得推测到期日期")
+        let detailed = try parse(#"{"rateLimitsByLimitId":{"codex":{"planType":"prolite","primary":{"usedPercent":20,"windowDurationMins":300}}},"rateLimitResetCredits":{"availableCount":3,"credits":[{"status":"available","expiresAt":3000},{"status":"redeemed","expiresAt":1200},{"status":"available","expiresAt":2000},{"status":"available","expiresAt":900},{"status":"available","expiresAt":null}]}}"#)
+        expect(detailed.planName == "Pro Lite" && detailed.planDescription == "当前套餐：Pro Lite",
+               "从 Codex 额度桶读取当前套餐")
+        expect(detailed.earliestResetCreditExpiration == Date(timeIntervalSince1970: 2000)
+               && detailed.resetCreditDescription?.contains("最早到期") == true,
+               "只选可用且尚未到期的重置卡，按最早到期展示")
+        let unknownPlan = try parse(#"{"rateLimits":{"planType":"unknown","primary":{"usedPercent":20,"windowDurationMins":300}},"rateLimitResetCredits":{"availableCount":0,"credits":[]}}"#)
+        expect(unknownPlan.planName == nil && unknownPlan.planDescription == "当前套餐：暂不可用"
+               && unknownPlan.resetCreditDescription == "可用重置卡 × 0",
+               "未知套餐和零张重置卡保持明确状态")
         expect(normal.fiveHour?.level == .caution, "20% remaining is terracotta")
         expect(QuotaWindow(usedPercent: 35, windowDurationMins: 300, resetsAt: nil).level == .ample, "65% remaining is sage green")
         expect(QuotaWindow(usedPercent: 36, windowDurationMins: 300, resetsAt: nil).level == .steady, "64% remaining is warm gold")
@@ -43,6 +55,54 @@ import Foundation
         expect(negativeCredits.resetCreditCount == 0, "invalid negative reset credits clamp to zero")
         expect(normal.isStale(at: Date(timeIntervalSince1970: 1091)), "old values are stale")
         expect(!normal.isStale(at: Date(timeIntervalSince1970: 1030)), "recent values remain current")
+        let transitionNow = Date(timeIntervalSince1970: 1_700_000_000)
+        let oldWindow = QuotaWindow(usedPercent: 32, windowDurationMins: 300, resetsAt: 1_700_010_000)
+        let updatedWindow = QuotaWindow(usedPercent: 48, windowDurationMins: 300, resetsAt: 1_700_010_000)
+        let transition = QuotaDisplayTransition.make(from: oldWindow, to: updatedWindow,
+                                                       displayedUsedPercent: 32, at: transitionNow)
+        expect(transition != nil, "额度增加时应创建平滑过渡")
+        if let transition {
+            expect(transition.usedPercent(at: transitionNow) == 32, "动画从当前显示值开始")
+            expect(abs(transition.usedPercent(at: transitionNow.addingTimeInterval(0.14)) - 40) < 0.001,
+                   "动画中点使用平滑插值")
+            expect(transition.usedPercent(at: transitionNow.addingTimeInterval(1)) == 48,
+                   "动画结束后显示完整新读数")
+            expect(!transition.isActive(at: transitionNow.addingTimeInterval(1)), "动画按时结束")
+        }
+        let interrupted = QuotaDisplayTransition.make(from: updatedWindow,
+                                                        to: QuotaWindow(usedPercent: 56, windowDurationMins: 300,
+                                                                        resetsAt: updatedWindow.resetsAt),
+                                                        displayedUsedPercent: 40, at: transitionNow)
+        expect(interrupted?.fromUsedPercent == 40, "连续刷新从当前可见值继续，不跳回旧目标")
+        expect(QuotaDisplayTransition.make(from: oldWindow,
+                                            to: QuotaWindow(usedPercent: 12, windowDurationMins: 300,
+                                                            resetsAt: oldWindow.resetsAt),
+                                            displayedUsedPercent: 32, at: transitionNow) == nil,
+               "用量大幅下降时不播放普通消耗动画")
+        expect(QuotaDisplayTransition.make(from: oldWindow,
+                                            to: QuotaWindow(usedPercent: 48, windowDurationMins: 300,
+                                                            resetsAt: 1_700_020_000),
+                                            displayedUsedPercent: 32, at: transitionNow) == nil,
+               "重置时间变化时直接显示新读数")
+        expect(QuotaDisplayTransition.make(from: oldWindow, to: updatedWindow,
+                                            displayedUsedPercent: nil, at: transitionNow) == nil,
+               "缺少可见旧读数时直接显示新读数")
+        let paceNow = Date(timeIntervalSince1970: 1_700_000_000)
+        let halfWeekReset = paceNow.addingTimeInterval(3.5 * 24 * 3_600).timeIntervalSince1970
+        func weeklyPace(_ used: Double?, reset: Double? = halfWeekReset, duration: Int = 10_080) -> WeeklyUsagePace? {
+            QuotaWindow(usedPercent: used, windowDurationMins: duration, resetsAt: reset).weeklyPace(at: paceNow)
+        }
+        expect(weeklyPace(65)?.state == .ahead, "weekly usage more than ten points ahead of elapsed time is fast")
+        expect(weeklyPace(50)?.state == .balanced, "weekly usage matching elapsed time is on pace")
+        expect(weeklyPace(30)?.state == .below, "weekly usage behind elapsed time is slow")
+        expect(weeklyPace(50)?.localizedLabel.contains("已用 50% / 已过 50%") == true,
+               "weekly pace explains the comparison behind its status")
+        expect(weeklyPace(nil) == nil && weeklyPace(50, reset: nil) == nil,
+               "missing quota or reset data cannot establish weekly pace")
+        expect(weeklyPace(50, reset: paceNow.timeIntervalSince1970 - 1) == nil
+               && weeklyPace(50, reset: paceNow.timeIntervalSince1970 + 8 * 24 * 3_600) == nil
+               && weeklyPace(50, duration: 300) == nil,
+               "expired, implausible, or nonweekly windows cannot establish weekly pace")
         let short = try parse(#"{"rateLimits":{"primary":{"usedPercent":50,"windowDurationMins":15}}}"#)
         expect(short.fiveHour == nil, "a 15 minute window must not be labelled 5 hours")
         do {

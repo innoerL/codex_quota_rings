@@ -7,6 +7,12 @@ struct QuotaTrendPoint: Equatable {
 
 struct QuotaTrendSeries: Equatable {
     let fiveHour: [[QuotaTrendPoint]]
+    let resetPositions: [Double]
+
+    init(fiveHour: [[QuotaTrendPoint]], resetPositions: [Double] = []) {
+        self.fiveHour = fiveHour
+        self.resetPositions = resetPositions
+    }
 
     static func make(samples: [QuotaHistorySample]) -> QuotaTrendSeries {
         let ordered = samples.sorted { $0.timestamp < $1.timestamp }
@@ -14,6 +20,7 @@ struct QuotaTrendSeries: Equatable {
             return QuotaTrendSeries(fiveHour: [])
         }
         let span = max(0, last.timeIntervalSince(first))
+        var resetPositions: [Double] = []
         func segments(value: (QuotaHistorySample) -> Double?) -> [[QuotaTrendPoint]] {
             var result: [[QuotaTrendPoint]] = []
             var current: [QuotaTrendPoint] = []
@@ -25,24 +32,24 @@ struct QuotaTrendSeries: Equatable {
                     continue
                 }
                 let normalizedUsed = min(100, max(0, used))
+                let x = span > 0 ? sample.timestamp.timeIntervalSince(first) / span : 0
                 if let previousUsed, previousUsed - normalizedUsed > 25, !current.isEmpty {
                     result.append(current); current = []
+                    if span > 0 { resetPositions.append(min(1, max(0, x))) }
                 }
-                let x = span > 0 ? sample.timestamp.timeIntervalSince(first) / span : 0
                 current.append(QuotaTrendPoint(x: min(1, max(0, x)), y: 1 - normalizedUsed / 100))
                 previousUsed = normalizedUsed
             }
             if !current.isEmpty { result.append(current) }
             return result
         }
-        return QuotaTrendSeries(fiveHour: segments { $0.fiveHourUsedPercent })
+        return QuotaTrendSeries(fiveHour: segments { $0.fiveHourUsedPercent }, resetPositions: resetPositions)
     }
 }
 
 struct QuotaTrendHover: Equatable {
     let sample: QuotaHistorySample
-    /// Percentage points of five-hour quota consumed per hour, when the prior
-    /// point belongs to the same quota-reset segment.
+    /// 前一个采样属于同一重置周期时，每小时消耗的 5 小时额度百分点。
     let hourlyConsumption: Double?
 }
 
@@ -77,12 +84,15 @@ enum QuotaTrendRenderer {
                width: max(24, rect.width - 30), height: max(22, rect.height - 35))
     }
 
-    static func draw(series: QuotaTrendSeries, retention: HistoryRetention, in rect: CGRect) {
-        draw(series: series, retention: retention, timeRange: nil, in: rect)
+    static func draw(series: QuotaTrendSeries, retention: HistoryRetention, in rect: CGRect,
+                     appearance: NSAppearance) {
+        draw(series: series, retention: retention, timeRange: nil, in: rect, appearance: appearance)
     }
 
-    static func draw(samples: [QuotaHistorySample], retention: HistoryRetention, in rect: CGRect) {
-        draw(series: .make(samples: samples), retention: retention, timeRange: timeRange(for: samples), in: rect)
+    static func draw(samples: [QuotaHistorySample], retention: HistoryRetention, in rect: CGRect,
+                     appearance: NSAppearance) {
+        draw(series: .make(samples: samples), retention: retention,
+             timeRange: timeRange(for: samples), in: rect, appearance: appearance)
     }
 
     static func timeRange(for samples: [QuotaHistorySample]) -> (start: Date, end: Date)? {
@@ -91,29 +101,32 @@ enum QuotaTrendRenderer {
     }
 
     private static func draw(series: QuotaTrendSeries, retention: HistoryRetention,
-                             timeRange: (start: Date, end: Date)?, in rect: CGRect) {
+                             timeRange: (start: Date, end: Date)?, in rect: CGRect,
+                             appearance: NSAppearance) {
+        let palette = WidgetAppearancePalette(appearance: appearance)
         let chart = chartRect(in: rect)
-        NSColor.white.withAlphaComponent(0.045).setFill()
+        palette.foreground.withAlphaComponent(palette.isDark ? 0.045 : 0.055).setFill()
         NSBezierPath(roundedRect: chart, xRadius: 7, yRadius: 7).fill()
         for fraction in [0.25, 0.5, 0.75] as [CGFloat] {
-            NSColor.white.withAlphaComponent(0.04).setStroke()
+            palette.foreground.withAlphaComponent(palette.isDark ? 0.04 : 0.08).setStroke()
             let grid = NSBezierPath()
             grid.move(to: NSPoint(x: chart.minX, y: chart.minY + chart.height * fraction))
             grid.line(to: NSPoint(x: chart.maxX, y: chart.minY + chart.height * fraction))
             grid.lineWidth = 0.5; grid.stroke()
         }
 
-        draw(series.fiveHour, color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1), in: chart)
+        draw(series.fiveHour, color: palette.color(for: .steady), in: chart)
+        drawResetMarkers(series.resetPositions, in: chart, palette: palette)
         let hasAny = !series.fiveHour.isEmpty
         if !hasAny {
             drawText(localized("正在收集趋势数据", "Collecting trend data"), at: NSPoint(x: chart.midX, y: chart.midY - 6), centered: true,
                      color: .tertiaryLabelColor)
         }
-        let tickColor = NSColor.tertiaryLabelColor
+        let tickColor: NSColor = palette.isDark ? .tertiaryLabelColor : .secondaryLabelColor
         drawRightText("100%", at: NSPoint(x: chart.minX - 5, y: chart.minY - 4), color: tickColor)
         drawRightText("50%", at: NSPoint(x: chart.minX - 5, y: chart.midY - 4), color: tickColor)
         drawRightText("0%", at: NSPoint(x: chart.minX - 5, y: chart.maxY - 10), color: tickColor)
-        drawLegendDot(at: NSPoint(x: rect.minX + 2, y: rect.minY + 3), color: NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1))
+        drawLegendDot(at: NSPoint(x: rect.minX + 2, y: rect.minY + 3), color: palette.color(for: .steady))
         drawText(localized("5 小时用量", "5-hour usage"), at: NSPoint(x: rect.minX + 10, y: rect.minY), color: .secondaryLabelColor)
         let range: String
         switch retention {
@@ -128,6 +141,34 @@ enum QuotaTrendRenderer {
         } else {
             drawText(localized("开始", "Start"), at: NSPoint(x: chart.minX, y: rect.maxY - 12), color: tickColor)
             drawRightText(localized("现在", "Now"), at: NSPoint(x: chart.maxX, y: rect.maxY - 12), color: tickColor)
+        }
+    }
+
+    private static func drawResetMarkers(_ positions: [Double], in chart: CGRect,
+                                         palette: WidgetAppearancePalette) {
+        let title = localized("重置", "Reset") as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 8, weight: .medium),
+            .foregroundColor: NSColor.labelColor
+        ]
+        let titleSize = title.size(withAttributes: attributes)
+        for position in positions {
+            let x = chart.minX + chart.width * CGFloat(min(1, max(0, position)))
+            let guide = NSBezierPath()
+            guide.move(to: NSPoint(x: x, y: chart.minY))
+            guide.line(to: NSPoint(x: x, y: chart.maxY))
+            palette.foreground.withAlphaComponent(0.36).setStroke()
+            guide.lineWidth = 0.8
+            guide.setLineDash([2, 3], count: 2, phase: 0)
+            guide.stroke()
+
+            let tagWidth = titleSize.width + 8
+            let tagX = min(max(chart.minX + 2, x + 4), chart.maxX - tagWidth - 2)
+            let tag = NSRect(x: tagX, y: chart.maxY - 16, width: tagWidth, height: 13)
+            NSColor(white: palette.isDark ? 0.16 : 0.88, alpha: 0.94).setFill()
+            NSBezierPath(roundedRect: tag, xRadius: 4, yRadius: 4).fill()
+            title.draw(at: NSPoint(x: tag.minX + 4, y: tag.minY + (tag.height - titleSize.height) / 2),
+                       withAttributes: attributes)
         }
     }
 
@@ -146,17 +187,19 @@ enum QuotaTrendRenderer {
         }
     }
 
-    static func drawHover(_ hover: QuotaTrendHover, position: CGFloat, in rect: CGRect) {
+    static func drawHover(_ hover: QuotaTrendHover, position: CGFloat, in rect: CGRect,
+                          appearance: NSAppearance) {
         guard let used = hover.sample.fiveHourUsedPercent else { return }
+        let palette = WidgetAppearancePalette(appearance: appearance)
         let chart = chartRect(in: rect)
         let normalized = min(100, max(0, used)) / 100
         let point = NSPoint(x: chart.minX + chart.width * min(1, max(0, position)),
                             y: chart.minY + chart.height * normalized)
-        NSColor.white.withAlphaComponent(0.36).setStroke()
+        palette.foreground.withAlphaComponent(0.36).setStroke()
         let guide = NSBezierPath()
         guide.move(to: NSPoint(x: point.x, y: chart.minY)); guide.line(to: NSPoint(x: point.x, y: chart.maxY))
         guide.lineWidth = 0.5; guide.stroke()
-        NSColor(srgbRed: 180/255, green: 138/255, blue: 74/255, alpha: 1).setFill()
+        palette.color(for: .steady).setFill()
         NSBezierPath(ovalIn: NSRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6)).fill()
 
         let formatter = DateFormatter(); formatter.dateFormat = "HH:mm:ss"
@@ -167,9 +210,9 @@ enum QuotaTrendRenderer {
         let width = min(max(118, size.width + 12), rect.width - 4)
         let bubble = NSRect(x: min(max(rect.minX + 2, point.x - width / 2), rect.maxX - width - 2),
                             y: rect.minY + 15, width: width, height: 17)
-        NSColor(white: 0.12, alpha: 0.96).setFill()
+        NSColor(white: palette.isDark ? 0.12 : 0.96, alpha: 0.96).setFill()
         NSBezierPath(roundedRect: bubble, xRadius: 5, yRadius: 5).fill()
-        NSColor.white.withAlphaComponent(0.18).setStroke()
+        palette.foreground.withAlphaComponent(0.18).setStroke()
         NSBezierPath(roundedRect: bubble, xRadius: 5, yRadius: 5).stroke()
         let textPoint = NSPoint(x: bubble.minX + 6, y: bubble.minY + (bubble.height - size.height) / 2)
         (text as NSString).draw(at: textPoint, withAttributes: attributes)
@@ -214,11 +257,17 @@ final class QuotaTrendView: NSView {
     }
     override func mouseExited(with event: NSEvent) { hover = nil }
     override func draw(_ dirtyRect: NSRect) {
-        QuotaTrendRenderer.draw(samples: samples, retention: retention, in: bounds)
+        QuotaTrendRenderer.draw(samples: samples, retention: retention, in: bounds,
+                                appearance: effectiveAppearance)
         guard let hover,
               let range = QuotaTrendRenderer.timeRange(for: samples) else { return }
         let span = range.end.timeIntervalSince(range.start)
         let position = span > 0 ? hover.sample.timestamp.timeIntervalSince(range.start) / span : 0
-        QuotaTrendRenderer.drawHover(hover, position: position, in: bounds)
+        QuotaTrendRenderer.drawHover(hover, position: position, in: bounds,
+                                     appearance: effectiveAppearance)
+    }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 }
