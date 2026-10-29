@@ -12,9 +12,9 @@ A small native macOS widget for the remaining Codex quota in the 5-hour and week
 
 <p align="center"><sub>Universal 2 · Apple Silicon & Intel · macOS 12+</sub></p>
 
-![Actual AppKit rendering of Quota Rings with standard, minimal, and large cards plus plan and reset-card expiry details, using sample data](assets/hero-real-v4.png)
+![Quota Rings desktop screenshot showing the standard rings and expanded quota details](assets/hero-user-screenshot.png)
 
-<p align="center"><sub>Actual AppKit rendering with sample quota values.</sub></p>
+<p align="center"><sub>Desktop screenshot provided by the project owner.</sub></p>
 
 ## Download and install
 

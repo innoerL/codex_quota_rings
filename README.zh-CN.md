@@ -12,9 +12,9 @@
 
 <p align="center"><sub>Universal 2 · 支持 Apple Silicon 与 Intel · macOS 12+</sub></p>
 
-![Quota Rings 的实际 AppKit 渲染：标准、极简、大卡片与套餐及重置卡到期详情，均为示例额度数据](assets/hero-real-v4.png)
+![Quota Rings 桌面实拍：标准圆环与展开后的额度详情](assets/hero-user-screenshot.png)
 
-<p align="center"><sub>实际 AppKit 渲染，使用示例额度数据。</sub></p>
+<p align="center"><sub>项目作者提供的实际桌面截图。</sub></p>
 
 ## 下载与安装
 
